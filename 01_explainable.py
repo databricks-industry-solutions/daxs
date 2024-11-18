@@ -13,11 +13,13 @@
 
 # COMMAND ----------
 
-# Required libraries: pyod, seaborn, mlflow
-# Install them using: pip install pyod seaborn mlflow
+# MAGIC %pip install -r requirements.txt --quiet
+# MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
-%run 00_utilities
+
+# MAGIC %run ./99_utilities
+
 # COMMAND ----------
 
 import mlflow
@@ -31,9 +33,39 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from pyod.models.ecod import ECOD
 from sklearn.metrics import precision_score, recall_score, f1_score
+from pyspark.sql.functions import current_user
+
+
+# Get the current user name and store it in a variable
+current_user_name = spark.sql("SELECT current_user()").collect()[0][0]
 
 # Set the experiment name
-mlflow.set_experiment("/Users/your_username/elevator_anomaly_detection")
+mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
+
+# COMMAND ----------
+
+catalog = "10x_ad"
+schema = "default"
+volume = "csv"
+
+# Make sure that the catalog exists
+_ = spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog}")
+
+# Make sure that the schema exists
+_ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{schema}")
+
+# Make sure that the volume exists
+_ = spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{schema}.{volume}")
+
+# COMMAND ----------
+
+import subprocess
+import kagglehub
+
+path = kagglehub.dataset_download("shivamb/elevator-predictive-maintenance-dataset", force_download=True)
+bash = f"""mv {path}/predictive-maintenance-dataset.csv /Volumes/{catalog}/{schema}/{volume}/predictive-maintenance-dataset.csv"""
+process = subprocess.Popen(bash, shell=True, executable='/bin/bash')
+process.wait()
 
 # COMMAND ----------
 
@@ -43,7 +75,8 @@ mlflow.set_experiment("/Users/your_username/elevator_anomaly_detection")
 # COMMAND ----------
 
 # Load the data
-df = spark.table("10x_ad.default.elevator_predictive_maintenance_dataset").toPandas()
+#df = spark.table(f"{catalog}.{schema}.elevator_predictive_maintenance_dataset").toPandas()
+df = spark.read.csv(f"/Volumes/{catalog}/{schema}/{volume}/predictive-maintenance-dataset.csv", header=True, inferSchema=True).toPandas()
 df = df.drop(columns=["ID"])
 print(f"Dataset shape: {df.shape}")
 display(df.head())
@@ -73,8 +106,6 @@ display(X.head())
 
 # COMMAND ----------
 
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC # Model Training and Evaluation
 
@@ -87,50 +118,50 @@ print(f"Training set shape: {X_train.shape}")
 print(f"Testing set shape: {X_test.shape}")
 
 # Train the ECOD model
-mlflow.start_run(run_name="ECOD_model")
+with mlflow.start_run(run_name="ECOD_model") as run:
 
-clf = ECOD(contamination=0.1, n_jobs=-1)
-clf.fit(X_train)
-clf.feature_columns_ = X_train.columns.tolist()
+    clf = ECOD(contamination=0.1, n_jobs=-1)
+    clf.fit(X_train)
+    clf.feature_columns_ = X_train.columns.tolist()
 
-# Predict on both training and test sets
-y_train_pred = clf.labels_
-y_test_pred = clf.predict(X_test)
-y_test_scores = clf.decision_function(X_test)
+    # Predict on both training and test sets
+    y_train_pred = clf.labels_
+    y_test_pred = clf.predict(X_test)
+    y_test_scores = clf.decision_function(X_test)
 
-# Log parameters
-mlflow.log_param("contamination", 0.1)
-mlflow.log_param("n_jobs", -1)
+    # Log parameters
+    mlflow.log_param("contamination", 0.1)
+    mlflow.log_param("n_jobs", -1)
 
-# Log metrics
-train_auc = synthetic_auc(clf, X_train)
-test_auc = synthetic_auc(clf, X_test)
-mlflow.log_metric("train_auc", train_auc)
-mlflow.log_metric("test_auc", test_auc)
+    # Log metrics
+    train_auc = synthetic_auc(clf, X_train)
+    test_auc = synthetic_auc(clf, X_test)
+    mlflow.log_metric("train_auc", train_auc)
+    mlflow.log_metric("test_auc", test_auc)
 
-# Log model
-signature = infer_signature(X_test, y_test_pred)
-mlflow.sklearn.log_model(clf, "ecod_model", signature=signature)
+    # Log model
+    signature = infer_signature(X_test, y_test_pred)
+    mlflow.sklearn.log_model(clf, "ecod_model", signature=signature)
 
-# Register the model
-model_name = "ECOD_Anomaly_Detection"
-model_version = mlflow.register_model(f"runs:/{mlflow.active_run().info.run_id}/ecod_model", model_name)
+    # Register the model
+    model_name = "ECOD_Anomaly_Detection"
+    model_version = mlflow.register_model(f"runs:/{mlflow.active_run().info.run_id}/ecod_model", model_name)
 
-# Transition the model to production
-client = mlflow.tracking.MlflowClient()
-client.transition_model_version_stage(
-    name=model_name,
-    version=model_version.version,
-    stage="Production"
-)
+    # Set this version as the Champion model, using its model alias
+    client = mlflow.tracking.MlflowClient()
+    client.set_registered_model_alias(
+        name=model_name,
+        alias="Champion",
+        version=model_version.version
+    )
 
-print(f"Model {model_name} version {model_version.version} is now in production")
+    print(f"Model {model_name} version {model_version.version} is now in production")
 
-mlflow.end_run()
+# COMMAND ----------
 
-# Load the latest production model
-loaded_model = mlflow.pyfunc.load_model(f"models:/{model_name}/Production")
-print(f"Loaded the latest production model: {model_name}")
+# Load the champion model
+loaded_model = mlflow.pyfunc.load_model(f"models:/{model_name}@champion")
+print(f"Loaded the champion model: {model_name}")
 
 # COMMAND ----------
 
@@ -144,6 +175,7 @@ df_train_results = evaluate_results(X_train, y_train_pred, clf, "Training")
 df_test_results = evaluate_results(X_test, y_test_pred, clf, "Test")
 
 # COMMAND ----------
+
 # Identify the most and least anomalous test samples
 most_anomalous_index = np.argmax(y_test_scores)
 least_anomalous_index = np.argmin(y_test_scores)
@@ -158,6 +190,7 @@ explain_test_outlier(clf, X_test, most_anomalous_index, feature_names=feature_na
 # Generate explain_outlier plots for the least anomalous test sample
 print("Least Anomalous Test Sample:")
 explain_test_outlier(clf, X_test, least_anomalous_index, feature_names=feature_names)
+
 # COMMAND ----------
 
 train_auc = synthetic_auc(clf, X_train)
@@ -165,10 +198,13 @@ test_auc = synthetic_auc(clf, X_test)
 
 print(f"Training AUC: {train_auc:.4f}")
 print(f"Testing AUC: {test_auc:.4f}")
+
 # COMMAND ----------
 
 
+
 # COMMAND ----------
+
 explanations = explainer(clf, X_test, training=False, explanation_num=3)
 explanations.sort_values('scores', ascending=False)
 
@@ -217,5 +253,18 @@ y_true = np.random.randint(0, 2, size=len(y_test_scores))
 auc = roc_auc_score(y_true, y_test_scores)
 print(f"Synthetic AUC: {auc:.4f}")
 
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC Note: This AUC score is based on synthetic labels and is for demonstration purposes only. In a real-world scenario, you would need actual labeled data to calculate a meaningful AUC score for anomaly detection.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC © 2024 Databricks, Inc. All rights reserved. The source in this notebook is provided subject to the Databricks License. All included or referenced third party libraries and dataset are subject to the licenses set forth below.
+# MAGIC
+# MAGIC | library / datas                        | description             | license    | source                                              |
+# MAGIC |----------------------------------------|-------------------------|------------|-----------------------------------------------------|
+# MAGIC | pyod | A Comprehensive and Scalable Python Library for Outlier Detection (Anomaly Detection) | BSD License | https://pypi.org/project/pyod/
+# MAGIC | kagglehub | Access Kaggle resources anywhere | Apache 2.0 | https://pypi.org/project/kagglehub/
+# MAGIC | predictive-maintenance-dataset.csv | predictive-maintenance-dataset.csv | CC0 1.0 | https://zenodo.org/records/3653909

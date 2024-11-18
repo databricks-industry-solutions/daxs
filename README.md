@@ -1,3 +1,5 @@
+<img src=https://raw.githubusercontent.com/databricks-industry-solutions/.github/main/profile/solacc_logo.png width="600px">
+
 # DAXS: Detection of Anomalies, Explainable and Scalable
 
 DAXS is an advanced, open-source solution for anomaly detection in manufacturing environments, designed to accelerate predictive maintenance through explainable and scalable models.
@@ -55,3 +57,4 @@ DAXS is an open-source project, and we welcome contributions from data scientist
 - Implement more advanced explainability techniques to provide deeper insights into detected anomalies.
 
 DAXS has the potential to revolutionize predictive maintenance in the manufacturing industry by providing an accessible, scalable, and explainable solution for anomaly detection. Join us in developing this powerful tool to help businesses improve their operations and reduce unplanned downtime.
+

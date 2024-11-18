@@ -1,0 +1,2 @@
+pyod==2.0.2
+kagglehub==0.3.3

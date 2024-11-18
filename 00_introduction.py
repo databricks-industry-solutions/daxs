@@ -1,4 +1,5 @@
 # Databricks notebook source
+
 # MAGIC %md
 # MAGIC # DAXS: Detection of Anomalies, eXplainable and Scalable
 # MAGIC 
@@ -134,3 +135,4 @@
 
 # MAGIC %md
 # MAGIC © 2024 DAXS Contributors. All rights reserved.
+
