@@ -26,7 +26,9 @@ In today's rapidly evolving industrial landscape, detecting anomalies in manufac
 
 ## Getting Started
 
-To use DAXS, you'll need to have Python installed along with the following libraries:
+To use DAXS, you'll need:
+- A Databricks Runtime ML (DBR-ML) cluster
+- Python installed along with the following libraries:
 - pyod
 - scikit-learn
 - pandas
