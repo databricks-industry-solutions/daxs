@@ -1,27 +1,52 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Elevator Predictive Maintenance Dataset: Anomaly Detection
-# MAGIC
-# MAGIC This notebook demonstrates the use of the Elevator Predictive Maintenance Dataset from Huawei German Research Center for anomaly detection. We'll use the ECOD (Empirical Cumulative Distribution Functions for Outlier Detection) algorithm from the PyOD library.
-# MAGIC
-# MAGIC Dataset details:
-# MAGIC - Contains operation data from IoT sensors for predictive maintenance in the elevator industry.
-# MAGIC - Timeseries data sampled at 4Hz during high-peak and evening elevator usage (16:30 to 23:30).
-# MAGIC - Includes data from electromechanical sensors (Door Ball Bearing Sensor), ambiance (Humidity), and physics (Vibration).
-# MAGIC
+# MAGIC 
+# MAGIC This solution accelerator demonstrates advanced anomaly detection techniques for predictive maintenance in the elevator industry using the ECOD (Empirical Cumulative Distribution Functions for Outlier Detection) algorithm.
+# MAGIC 
+# MAGIC ## Overview
+# MAGIC This notebook showcases:
+# MAGIC - Implementation of unsupervised anomaly detection using PyOD
+# MAGIC - MLflow tracking and model management
+# MAGIC - Comprehensive evaluation and visualization of results
+# MAGIC - Explainable AI techniques for anomaly interpretation
+# MAGIC 
+# MAGIC ## Dataset Details
+# MAGIC The dataset comes from the Huawei German Research Center and includes:
+# MAGIC - IoT sensor data for elevator predictive maintenance
+# MAGIC - 4Hz sampling rate during peak usage (16:30 to 23:30)
+# MAGIC - Multiple sensor types:
+# MAGIC   * Electromechanical (Door Ball Bearing)
+# MAGIC   * Environmental (Humidity)
+# MAGIC   * Physical (Vibration)
+# MAGIC 
 # MAGIC Source: [Kaggle - Elevator Predictive Maintenance Dataset](https://www.kaggle.com/datasets/shivamb/elevator-predictive-maintenance-dataset)
+# MAGIC 
+# MAGIC ## Requirements
+# MAGIC - Databricks Runtime ML
+# MAGIC - PyOD library for anomaly detection
+# MAGIC - Kaggle API access for dataset download
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Environment Setup
+# MAGIC First, we'll install required packages and import necessary libraries
+
+# COMMAND ----------
+
+# Install required packages
 # MAGIC %pip install -r requirements.txt --quiet
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
 
+# Import utility functions
 # MAGIC %run ./99_utilities
 
 # COMMAND ----------
 
+# Import required libraries
 import mlflow
 import mlflow.sklearn
 from mlflow.models.signature import infer_signature
@@ -29,11 +54,17 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import (
+    roc_auc_score,
+    precision_score, 
+    recall_score, 
+    f1_score
+)
 from sklearn.model_selection import train_test_split
-from pyod.models.ecod import ECOD
-from sklearn.metrics import precision_score, recall_score, f1_score
+from pyod.models.ecod import ECOD  # Empirical Cumulative Distribution Functions for Outlier Detection
 from pyspark.sql.functions import current_user
+
+# Set up MLflow experiment tracking
 
 
 # Get the current user name and store it in a variable
@@ -44,18 +75,23 @@ mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Data Infrastructure Setup
+# MAGIC Configure the necessary Databricks infrastructure for data storage
+
+# COMMAND ----------
+
+# Define storage locations
 catalog = "10x_ad"
 schema = "default"
 volume = "csv"
 
-# Make sure that the catalog exists
+# Initialize Databricks storage hierarchy
+print("Setting up Databricks storage infrastructure...")
 _ = spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog}")
-
-# Make sure that the schema exists
 _ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{schema}")
-
-# Make sure that the volume exists
 _ = spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{schema}.{volume}")
+print(f"Storage configured at {catalog}.{schema}.{volume}")
 
 # COMMAND ----------
 
