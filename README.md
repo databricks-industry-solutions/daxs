@@ -2,6 +2,9 @@
 
 # DAXS: Detection of Anomalies, eXplainable and Scalable
 
+[![DBR](https://img.shields.io/badge/DBR-ML%20Runtime-red)](https://docs.databricks.com/runtime/mlruntime.html)
+[![GitHub](https://img.shields.io/badge/GitHub-View%20on%20GitHub-blue)](https://github.com/databricks-industry-solutions/daxs)
+
 DAXS is a cutting-edge solution designed for advanced anomaly detection in manufacturing environments, providing explainable, scalable, and cost-effective predictive maintenance capabilities.
 
 ## Overview
