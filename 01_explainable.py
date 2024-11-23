@@ -44,18 +44,18 @@ mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
 
 # COMMAND ----------
 
-catalog = "10x_ad"
-schema = "default"
+catalog = "daxs"
+db = "default"
 volume = "csv"
 
 # Make sure that the catalog exists
 _ = spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog}")
 
 # Make sure that the schema exists
-_ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{schema}")
+_ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{db}")
 
 # Make sure that the volume exists
-_ = spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{schema}.{volume}")
+_ = spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{db}.{volume}")
 
 # COMMAND ----------
 
@@ -63,7 +63,7 @@ import subprocess
 import kagglehub
 
 path = kagglehub.dataset_download("shivamb/elevator-predictive-maintenance-dataset", force_download=True)
-bash = f"""mv {path}/predictive-maintenance-dataset.csv /Volumes/{catalog}/{schema}/{volume}/predictive-maintenance-dataset.csv"""
+bash = f"""mv {path}/predictive-maintenance-dataset.csv /Volumes/{catalog}/{db}/{volume}/predictive-maintenance-dataset.csv"""
 process = subprocess.Popen(bash, shell=True, executable='/bin/bash')
 process.wait()
 
@@ -75,8 +75,8 @@ process.wait()
 # COMMAND ----------
 
 # Load the data
-#df = spark.table(f"{catalog}.{schema}.elevator_predictive_maintenance_dataset").toPandas()
-df = spark.read.csv(f"/Volumes/{catalog}/{schema}/{volume}/predictive-maintenance-dataset.csv", header=True, inferSchema=True).toPandas()
+#df = spark.table(f"{catalog}.{db}.elevator_predictive_maintenance_dataset").toPandas()
+df = spark.read.csv(f"/Volumes/{catalog}/{db}/{volume}/predictive-maintenance-dataset.csv", header=True, inferSchema=True).toPandas()
 df = df.drop(columns=["ID"])
 print(f"Dataset shape: {df.shape}")
 display(df.head())
@@ -144,7 +144,7 @@ with mlflow.start_run(run_name="ECOD_model") as run:
     mlflow.sklearn.log_model(clf, "ecod_model", signature=signature)
 
     # Register the model
-    model_name = "ECOD_Anomaly_Detection"
+    model_name = f"{catalog}.{db}.ECOD_Anomaly_Detection"
     model_version = mlflow.register_model(f"runs:/{mlflow.active_run().info.run_id}/ecod_model", model_name)
 
     # Set this version as the Champion model, using its model alias
@@ -198,10 +198,6 @@ test_auc = synthetic_auc(clf, X_test)
 
 print(f"Training AUC: {train_auc:.4f}")
 print(f"Testing AUC: {test_auc:.4f}")
-
-# COMMAND ----------
-
-
 
 # COMMAND ----------
 
