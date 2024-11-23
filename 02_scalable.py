@@ -159,7 +159,7 @@ model_df = spark_df.groupBy('turbine_id').applyInPandas(train_ecod_model, schema
 (
   model_df
   .withColumn("created_at", current_timestamp())
-  .write.mode("append")
+  .write.mode("overwrite")
   .saveAsTable(f"{catalog}.{db}.models")
 )
 
@@ -218,7 +218,7 @@ def predict_with_ecod(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
     turbine_id = turbine_pdf['turbine_id'].iloc[0]
 
     # Identify feature columns by excluding non-feature columns
-    feature_columns = turbine_pdf.columns.drop(['turbine_id', 'timestamp', 'n_used', 'encode_model'])
+    feature_columns = turbine_pdf.columns.drop(['turbine_id', 'timestamp', 'n_used', 'encode_model', 'created_at'])
 
     # Deserialize the ECOD model from the encoded string
     encode_model = turbine_pdf['encode_model'].iloc[0]
@@ -236,7 +236,7 @@ def predict_with_ecod(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
     turbine_pdf['anomaly_score'] = scores
 
     # Remove unnecessary columns before returning the result
-    result_pdf = turbine_pdf.drop(columns=['n_used', 'encode_model'])
+    result_pdf = turbine_pdf.drop(columns=['n_used', 'encode_model', 'created_at'])
 
     return result_pdf
 
@@ -272,7 +272,7 @@ latest_model_df = model_df_with_row_num.filter(col('row_num') == 1).drop('row_nu
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC For demonstration purpose, we perform inference on the training sample. We use the sensor data collected over the last one hour simulating a scenario where the outlier detection will be run on an hourly basis in batches.
+# MAGIC For demonstration purpose, we perform inference on the training sample. We use the latest sensor data collected simulating a scenario where the outlier detection will be run on a regular basis in batches.
 
 # COMMAND ----------
 
@@ -282,11 +282,11 @@ window_spec_60 = Window.partitionBy('turbine_id').orderBy(col('timestamp').desc(
 # Add row number to each row within the window
 spark_df_with_row_num = spark_df.withColumn('row_num', row_number().over(window_spec_60))
 
-# Filter to get the latest 60 rows for each turbine_id
-latest_df = spark_df_with_row_num.filter(col('row_num') <= 60).drop('row_num')
+# Filter to get the latest 1 row for each turbine_id
+latest_df = spark_df_with_row_num.filter(col('row_num') <= 1).drop('row_num')
 
 # Join the model DataFrame with the latest sensor DataFrame
-joined_df = spark_df.join(latest_model_df, on='turbine_id', how='inner')
+joined_df = latest_df.join(latest_model_df, on='turbine_id', how='inner')
 
 # COMMAND ----------
 
@@ -297,8 +297,8 @@ result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod, sch
 (
   result_df
   .withColumn("created_at", current_timestamp())
-  .write.mode("append")
-  .saveAsTable(f"{catalog}.{db}.result")
+  .write.mode("overwrite")
+  .saveAsTable(f"{catalog}.{db}.results")
 )
 
 # COMMAND ----------
