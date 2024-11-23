@@ -1,30 +1,37 @@
 <img src=https://raw.githubusercontent.com/databricks-industry-solutions/.github/main/profile/solacc_logo.png width="600px">
 
-# DAXS: Detection of Anomalies, Explainable and Scalable
+# DAXS: Detection of Anomalies, eXplainable and Scalable
 
-DAXS is an advanced, open-source solution for anomaly detection in manufacturing environments, designed to accelerate predictive maintenance through explainable and scalable models.
+[![DBR](https://img.shields.io/badge/DBR-ML%20Runtime-red)](https://docs.databricks.com/runtime/mlruntime.html)
+[![GitHub](https://img.shields.io/badge/GitHub-View%20on%20GitHub-blue)](https://github.com/databricks-industry-solutions/daxs)
+
+DAXS is a cutting-edge solution designed for advanced anomaly detection in manufacturing environments, providing explainable, scalable, and cost-effective predictive maintenance capabilities.
 
 ## Overview
 
-DAXS leverages state-of-the-art anomaly detection techniques, particularly the ECOD (Empirical Cumulative Distribution Functions for Outlier Detection) algorithm, to identify potential issues in manufacturing processes before they escalate into serious problems. The project is built on three core principles:
+In today's rapidly evolving industrial landscape, detecting anomalies in manufacturing processes is crucial for maintaining efficiency and reducing downtime. DAXS leverages the ECOD (Empirical Cumulative Distribution Functions for Outlier Detection) algorithm to address three critical challenges:
 
-1. **Detection**: Utilizes robust anomaly detection methods to identify unusual patterns in sensor data.
-2. **Explainability**: Provides clear, interpretable insights into detected anomalies, enabling informed decision-making.
-3. **Scalability**: Designed to handle large-scale datasets and adapt to various manufacturing environments.
+1. **Explainability**: Provides transparent insights into which specific sensors or features contribute to detected anomalies, enabling quick root cause analysis.
+2. **Scalability**: Handles datasets with over a billion records and trains thousands of models efficiently through one unified endpoint.
+3. **Cost-Effectiveness**: Minimizes computational costs through efficient resource utilization and optimized processing techniques.
 
-## Key Features
+## Key Components
 
-- **Explainable Anomaly Detection**: The `01_explainable.py` module demonstrates the use of ECOD for anomaly detection on the Elevator Predictive Maintenance Dataset. It includes functionality for visualizing anomaly scores and explaining the most significant factors contributing to each anomaly.
+- **Introduction (`00_introduction.py`)**: Overview of DAXS architecture and core concepts.
 
-- **Scalable Implementation**: While not fully implemented yet, the `02_many_models_ad.py` file is intended to showcase how the anomaly detection process can be scaled to handle multiple models or larger datasets efficiently.
+- **Explainable Detection (`01_explainable.py`)**: Implementation of ECOD algorithm for transparent anomaly detection on the Elevator Predictive Maintenance Dataset.
 
-- **Inference and Deployment**: The `03_predict_anomalies.py` script provides a framework for loading a trained model and making predictions on new data. This module is designed to be extended with scalability features to handle real-time, large-scale anomaly detection.
+- **Scalable Processing (`02_many_models_ad.py`)**: Framework for handling large-scale datasets and multiple model training.
 
-- **Utility Functions**: The `00_utilities.py` file contains a collection of helper functions for evaluating results, calculating synthetic AUC scores, and generating explanations for detected anomalies.
+- **Real-time Inference (`03_predict_anomalies.py`)**: Production-ready inference pipeline for real-time anomaly detection.
+
+- **Utility Functions (`00_utilities.py`)**: Helper functions for model evaluation, metrics calculation, and anomaly explanation generation.
 
 ## Getting Started
 
-To use DAXS, you'll need to have Python installed along with the following libraries:
+To use DAXS, you'll need:
+- A Databricks Runtime ML (DBR-ML) cluster
+- Python installed along with the following libraries:
 - pyod
 - scikit-learn
 - pandas

@@ -140,11 +140,12 @@ with mlflow.start_run(run_name="ECOD_model") as run:
     mlflow.log_metric("test_auc", test_auc)
 
     # Log model
-    signature = infer_signature(X_test, y_test_pred)
+    signature = infer_signature(X_test, y_test_pred) 
     mlflow.sklearn.log_model(clf, "ecod_model", signature=signature)
 
     # Register the model
     model_name = f"{catalog}.{db}.ECOD_Anomaly_Detection"
+
     model_version = mlflow.register_model(f"runs:/{mlflow.active_run().info.run_id}/ecod_model", model_name)
 
     # Set this version as the Champion model, using its model alias
