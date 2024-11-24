@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 from pyod.models.ecod import ECOD
 from pyspark.sql.functions import col
-from pyspark.sql.types import StructType, StructField, StringType, FloatType, IntegerType, TimestampType
+from pyspark.sql.types import StructType, StructField, StringType, FloatType, IntegerType, TimestampType, ArrayType
 from pyspark.sql import functions as F
 import mlflow
 from base64 import urlsafe_b64encode, urlsafe_b64decode
@@ -115,7 +115,7 @@ def train_ecod_model(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
     n_used = turbine_pdf.shape[0]
 
     # Initialize and train the ECOD model
-    clf = ECOD(n_jobs=-1)
+    clf = ECOD(n_jobs=1)
     clf.fit(X_train)
 
     # Serialize the trained model using base64 encoding
@@ -213,7 +213,7 @@ SELECT turbine_id, n_used, LEFT(encode_model, 20) as encode_model, created_at AS
 def predict_with_ecod(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
     import pickle  # Import pickle for deserialization
     from base64 import urlsafe_b64decode  # Import decoding utility
-
+    
     # Extract the turbine ID
     turbine_id = turbine_pdf['turbine_id'].iloc[0]
 
@@ -226,26 +226,37 @@ def predict_with_ecod(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
 
     # Prepare test data by selecting feature columns and filling missing values with 0
     X_test = turbine_pdf[feature_columns].fillna(0)
+    
+    # Explode the dataframe to multiple rows
+    X_test = X_test.explode(X_test.columns.tolist())
 
+    # Cast all columns as float
+    X_test = X_test.astype('float64')
+    
     # Perform inference using the trained model
-    y_pred = model.predict(X_test)  # Predict anomalies
-    scores = model.decision_function(X_test)  # Compute anomaly scores
+    y_pred = model.predict(X_test)              # Predict anomalies
+    scores = model.decision_function(X_test)    # Compute anomaly scores
 
-    # Add predictions and scores to the DataFrame
-    turbine_pdf['anomaly'] = y_pred
-    turbine_pdf['anomaly_score'] = scores
+    turbine_pdf['anomaly'] = [y_pred]
+    turbine_pdf['anomaly_score'] = [scores]
 
     # Remove unnecessary columns before returning the result
     result_pdf = turbine_pdf.drop(columns=['n_used', 'encode_model', 'created_at'])
-
-    return result_pdf
+    
+    return result_pdf.reset_index(drop=True)
 
 # COMMAND ----------
 
 # Define the result schema
-result_schema = spark_df.schema \
-    .add(StructField('anomaly', IntegerType(), True)) \
-    .add(StructField('anomaly_score', FloatType(), True))
+result_schema = StructType(
+    [
+        StructField("turbine_id", StringType()),
+        StructField("timestamp", ArrayType(TimestampType())),
+    ] 
+    + [StructField(f"sensor_{i}", ArrayType(FloatType())) for i in range(1, num_sensors + 1)]
+    + [StructField('anomaly', ArrayType(IntegerType()), True)]
+    + [StructField('anomaly_score', ArrayType(FloatType()), True)]
+)
 
 # COMMAND ----------
 
@@ -272,9 +283,11 @@ latest_model_df = model_df_with_row_num.filter(col('row_num') == 1).drop('row_nu
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC For demonstration purpose, we perform inference on the training sample. We use the latest sensor data collected simulating a scenario where the outlier detection will be run on a regular basis in batches.
+# MAGIC For demonstration purpose, we perform inference on the training sample. We use the sensor data collected over the last hour simulating a scenario where the outlier detection will be run on an hourly basis in batches.
 
 # COMMAND ----------
+
+from pyspark.sql.functions import collect_list
 
 # Define window specification to get the latest 60 timestamps for each turbine_id
 window_spec_60 = Window.partitionBy('turbine_id').orderBy(col('timestamp').desc())
@@ -282,13 +295,18 @@ window_spec_60 = Window.partitionBy('turbine_id').orderBy(col('timestamp').desc(
 # Add row number to each row within the window
 spark_df_with_row_num = spark_df.withColumn('row_num', row_number().over(window_spec_60))
 
-# Filter to get the latest 1 row for each turbine_id
-latest_df = spark_df_with_row_num.filter(col('row_num') <= 1).drop('row_num')
+# Filter to get the latest 60 row for each turbine_id
+latest_df = spark_df_with_row_num.filter(col('row_num') <= 60).drop('row_num')
+
+# Group by turbine_id and collect values into lists for each column
+latest_df = latest_df.groupBy('turbine_id').agg(
+    *[collect_list(col_name).alias(col_name) for col_name in latest_df.columns if col_name != 'turbine_id']
+)
+
+# COMMAND ----------
 
 # Join the model DataFrame with the latest sensor DataFrame
 joined_df = latest_df.join(latest_model_df, on='turbine_id', how='inner')
-
-# COMMAND ----------
 
 # Apply the inference function using applyInPandas
 result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod, schema=result_schema)
@@ -300,6 +318,15 @@ result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod, sch
   .write.mode("overwrite")
   .saveAsTable(f"{catalog}.{db}.results")
 )
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Let's take a peek at the results.
+
+# COMMAND ----------
+
+display(spark.sql(f"""SELECT * FROM {catalog}.{db}.results"""))
 
 # COMMAND ----------
 
