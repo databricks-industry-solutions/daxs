@@ -111,7 +111,6 @@ display(X.head())
 
 # COMMAND ----------
 
-
 # Split the data
 X_train, X_test = train_test_split(X, test_size=0.2, random_state=42)
 print(f"Training set shape: {X_train.shape}")
