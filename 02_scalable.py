@@ -21,6 +21,10 @@
 
 # COMMAND ----------
 
+# MAGIC %run ./99_utilities
+
+# COMMAND ----------
+
 # DBTITLE 1,Import necessary libraries
 import numpy as np
 import pandas as pd
@@ -69,25 +73,19 @@ sqlContext.setConf("spark.sql.shuffle.partitions", num_turbines)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC We run a separate notebook, `generate_data`, to create the dataset. Under the hood, the notebook leverages the Pandas UDF to generate data from a hundred sensors across thousands of turbines. Once generated, the dataset is written to a Delta table: `{catalog}.{db}.turbine_data_{num_turbines}`.
+# MAGIC We run a custom function, `create_turbine_dataset`, defined in the `99_utilities` notebook to create the dataset. Under the hood, the function leverages the Pandas UDF to generate data from a hundred sensors across thousands of turbines. Once generated, the dataset is written to a Delta table: `{catalog}.{db}.turbine_data_{num_turbines}`.
 
 # COMMAND ----------
 
-dbutils.notebook.run("./generate_data", timeout_seconds=0, arguments={
-    "catalog": catalog, 
-    "db": db, 
-    "num_turbines": num_turbines,
-    "num_sensors": num_sensors, 
-    "samples_per_turbine": samples_per_turbine,
-    })
+create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_turbine, start_date='2025-01-01')
 
 # COMMAND ----------
 
-# Convert the Pandas DataFrame to Spark DataFrame
+# Read the data from the Delta table to Spark DataFrame
 spark_df = spark.read.table(f"{catalog}.{db}.turbine_data_{num_turbines}")
 
 # Display the first few rows of the DataFrame
-display(spark_df.filter("turbine_id = 'Turbine_1'"))
+display(spark_df.filter("turbine_id='Turbine_1'"))
 
 # COMMAND ----------
 
@@ -166,44 +164,18 @@ model_df = spark_df.groupBy('turbine_id').applyInPandas(train_ecod_model, schema
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ###Benchmarking with different cluster configuration (to be removed)
-# MAGIC n is the number of turbines and there are 100 sensors in each turbine. t is the time it took to complete the fit.
-# MAGIC
-# MAGIC ####spark.task.cpus = 1
-# MAGIC n = 10,000 <br>
-# MAGIC t =  5.45 min<br>
-# MAGIC
-# MAGIC n = 50,000<br>
-# MAGIC t = 20 min<br>
-# MAGIC
-# MAGIC n = 100,000<br>
-# MAGIC t = 41.7 min<br>
-# MAGIC
-# MAGIC ####spark.task.cpus = 2
-# MAGIC n = 10,000<br>
-# MAGIC t = 5.9 min<br>
-# MAGIC
-# MAGIC n = 50,000<br>
-# MAGIC t =  26 min<br>
-# MAGIC
-# MAGIC n = 100,000<br>
-# MAGIC t =  55 min<br>
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC Let's take a peek at the output table. The `n_used` column shows the number of samples used to train each model, while the `encode_model` column contains the binary representation of each model, which can be easily unpickled and used for inference (as will be demonstrated shortly).
 
 # COMMAND ----------
 
 display(spark.sql(f"""
-SELECT turbine_id, n_used, LEFT(encode_model, 20) as encode_model, created_at AS encode_model FROM {catalog}.{db}.models LIMIT 10
+SELECT turbine_id, n_used, LEFT(encode_model, 20) AS encode_model, created_at FROM {catalog}.{db}.models LIMIT 10
 """))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Perform inference on many models using Pandas UDF
+# MAGIC ## 3. Perform inference on many ECOD models using Pandas UDF
 # MAGIC
 # MAGIC Databricks recommends MLflow as the best practice for tracking models and experiment runs. However, at the scale of this exercise, logging and tracking thousands of runs in a short time can be challenging due to resource [limitations](https://docs.databricks.com/en/resources/limits.html) on the MLflow Tracking Server. To address this, we are using a Delta table to track runs and models instead. In this section, we will load the models stored in the `models` table and use them for inference. Again, we will use Pandas UDF to efficiently distribute the inference across the cluster.
 
@@ -237,11 +209,13 @@ def predict_with_ecod(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
     y_pred = model.predict(X_test)              # Predict anomalies
     scores = model.decision_function(X_test)    # Compute anomaly scores
 
+    # Append the results to the original dataframe
     turbine_pdf['anomaly'] = [y_pred]
     turbine_pdf['anomaly_score'] = [scores]
 
     # Remove unnecessary columns before returning the result
-    result_pdf = turbine_pdf.drop(columns=['n_used', 'encode_model', 'created_at'])
+    drop_columns = ['n_used', 'encode_model', 'created_at'] + [col for col in turbine_pdf.columns if col.startswith('sensor')]
+    result_pdf = turbine_pdf.drop(columns = drop_columns)
     
     return result_pdf.reset_index(drop=True)
 
@@ -253,7 +227,6 @@ result_schema = StructType(
         StructField("turbine_id", StringType()),
         StructField("timestamp", ArrayType(TimestampType())),
     ] 
-    + [StructField(f"sensor_{i}", ArrayType(FloatType())) for i in range(1, num_sensors + 1)]
     + [StructField('anomaly', ArrayType(IntegerType()), True)]
     + [StructField('anomaly_score', ArrayType(FloatType()), True)]
 )
@@ -314,7 +287,7 @@ result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod, sch
 # Write the output of applyInPandas to a delta table
 (
   result_df
-  .withColumn("created_at", current_timestamp())
+  .withColumn("scored_at", current_timestamp())
   .write.mode("overwrite")
   .saveAsTable(f"{catalog}.{db}.results")
 )
@@ -326,12 +299,31 @@ result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod, sch
 
 # COMMAND ----------
 
-display(spark.sql(f"""SELECT * FROM {catalog}.{db}.results"""))
+results = spark.sql(f"""SELECT * FROM {catalog}.{db}.results""")
+
+# COMMAND ----------
+
+exploded_results = results.withColumn("zip", F.arrays_zip("timestamp", "anomaly", "anomaly_score"))\
+    .withColumn("zip", F.explode("zip"))\
+    .select(
+        "turbine_id", 
+        F.col("zip.timestamp").alias("timestamp"), 
+        F.col("zip.anomaly").alias("anomaly"), 
+        F.col("zip.anomaly_score").alias("anomaly_score"), 
+        "scored_at")
+
+display(exploded_results.filter("turbine_id='Turbine_1'").orderBy("timestamp"))
 
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## 4. Results
+# MAGIC
 # MAGIC In this notebook, we demonstrated how ECOD can be used to fit and make prediction on a large dataset by utilizing Pandas UDFs with Spark.
+# MAGIC
+# MAGIC To execute this notebook, we used a multi-node interactive cluster consisting of 8 workers, each equipped with 4 cores and 16 GB of memory. The setup corresponds to [m5d.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on AWS (12.42 DBU/h) or [Standard_D4ds_v5](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on Azure (18 DBU/h). Training individual models for 1,440 time points across 10,000 turbines with 100 sensors took approximately 4 minutes. Performing inference on the 10,000 trained models, each executed 60 times, required about 7.5 minutes. 
+# MAGIC
+# MAGIC An efficient implementation of ECOD combined with Pandas UDF allows these [embarrasigly parallelizable](https://en.wikipedia.org/wiki/Embarrassingly_parallel) operations to scale proportionally with the size of the cluster: i.e., number of cores. 
 
 # COMMAND ----------
 
