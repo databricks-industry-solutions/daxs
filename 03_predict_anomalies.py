@@ -17,7 +17,8 @@ import matplotlib.pyplot as plt
 
 # COMMAND ----------
 
-# MAGIC %run ./00_utilities
+# MAGIC %run ./99_utilities
+
 # COMMAND ----------
 
 # Load the latest production model

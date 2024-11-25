@@ -1,9 +1,11 @@
 # Databricks notebook source
 import numpy as np
+import pandas as pd
+import functools
 from sklearn.metrics import roc_auc_score
 import matplotlib.pyplot as plt
-import pandas as pd
 from pyod.models.ecod import ECOD
+
 
 def evaluate_results(X_data, y_pred, clf, set_name):
     df_results = X_data.copy()
@@ -26,6 +28,7 @@ def evaluate_results(X_data, y_pred, clf, set_name):
 
     return df_results
 
+
 def synthetic_auc(model, X, n_synthetic=1000):
     # Generate synthetic normal data
     normal_synthetic = np.random.normal(loc=X.mean(axis=0), scale=X.std(axis=0), size=(n_synthetic, X.shape[1]))
@@ -43,6 +46,7 @@ def synthetic_auc(model, X, n_synthetic=1000):
     # Calculate AUC
     auc = roc_auc_score(y_synthetic, scores)
     return auc
+
 
 def explain_test_outlier(clf, X_test, index, columns=None, cutoffs=None,
                          feature_names=None, file_name=None, file_type=None):
@@ -141,6 +145,7 @@ def explain_test_outlier(clf, X_test, index, columns=None, cutoffs=None,
             plt.savefig(f"{file_name}.png", dpi=300)
     plt.show()
 
+
 def explainer(clf, df, training=False, explanation_num=3):
     # Use feature columns stored in the classifier if available
     feature_cols = getattr(clf, 'feature_columns_', df.columns.tolist())
@@ -176,4 +181,51 @@ def explainer(clf, df, training=False, explanation_num=3):
         result_df[f'Explanation_{i+1}_Strength'] = raw_scores_per_sample / scores
     
     return result_df.reset_index(drop=True)
+
+
+def generate_turbine_data(
+    df: pd.DataFrame, 
+    num_sensors,
+    samples_per_turbine,
+    start_date,
+    ) -> pd.DataFrame:
+    turbine_id = [df["turbine_id"].iloc[0]] * samples_per_turbine
+    sensor_id = [f'sensor_{i}' for i in range(1, num_sensors + 1)]
+    timestamps = [pd.to_datetime(start_date) + pd.Timedelta(minutes=i) for i in range(1, samples_per_turbine + 1)]
+    res_df = pd.DataFrame({'turbine_id': turbine_id, 'timestamp': timestamps})
+    for i in range(1, num_sensors + 1):
+        res_df[f"sensor_{i}"] = list(np.random.normal(loc=0, scale=1, size=samples_per_turbine))
+    
+    return res_df
+  
+
+def create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_turbine, start_date='2025-01-01'):
+    """
+    Creates a synthetic dataset with specified number of turbines,
+    each having a fixed number of sensors between num_sensors,
+    and adds a timestamp column.
+    """
+    from pyspark.sql.functions import col, lit
+    from pyspark.sql.types import StructType, StructField, StringType, FloatType, IntegerType, TimestampType, ArrayType
+    
+    columns = [
+        StructField('turbine_id', StringType(), True),
+        StructField('timestamp', TimestampType(), True),
+    ]
+    for i in range(1, num_sensors + 1):
+        columns.append(StructField(f'sensor_{i}', FloatType(), True))
+    
+    turbine_ids = [f'Turbine_{i}' for i in range(1, num_turbines + 1)]
+
+    df = spark.createDataFrame([(tid,) for tid in turbine_ids], ['turbine_id'])
+
+    generate_turbine_data_fn = functools.partial(
+        generate_turbine_data, 
+        num_sensors=num_sensors,
+        samples_per_turbine=samples_per_turbine,
+        start_date=start_date,
+        )
+
+    df = df.groupBy('turbine_id').applyInPandas(generate_turbine_data_fn, schema=StructType(columns))
+    df.write.mode('overwrite').saveAsTable(f'{catalog}.{db}.turbine_data_{num_turbines}')
 
