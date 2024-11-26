@@ -38,28 +38,22 @@ import pickle
 
 # COMMAND ----------
 
-# DBTITLE 1,Create the catalog and schema if they don't exist
+# DBTITLE 1,Specify the catalog and schema
 catalog = "daxs"
 db = "default"
-
-# Make sure that the catalog exists
-_ = spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog}")
-
-# Make sure that the schema exists
-_ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{db}")
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 2. Synthetic data creation
 # MAGIC
-# MAGIC To demonstrate how DAXS efficiently handles large-scale operations, we will generate a synthetic dataset and use DAXS to perform model fitting and prediction. The dataset simulates a fictitious scenario where thousands of wind turbines are monitored in the field. Each turbine is equipped with a hundred sensors, generating readings sampled at a one-minute frequency. Our objective is to train thousands of individual ECOD models and use them for inference. To achieve this, we leverage Pandas UDFs for distributed processing.
+# MAGIC To demonstrate how DAXS efficiently handles large-scale inference, we will generate a synthetic dataset. The dataset simulates a fictitious scenario where thousands of wind turbines are monitored in the field. Each turbine is equipped with a hundred sensors, generating readings sampled at a one-minute frequency. Our objective is to train thousands of individual ECOD models and use them for inference. To achieve this, we leverage Pandas UDFs for distributed processing.
 
 # COMMAND ----------
 
 num_turbines = 10000        # number of turbines
 num_sensors = 100           # number of sensors in each turbine
-samples_per_turbine = 1440  # corresponds to 1 day of data
+samples_per_turbine = 60    # corresponds to 1 hour of data
 
 # COMMAND ----------
 
@@ -77,105 +71,25 @@ sqlContext.setConf("spark.sql.shuffle.partitions", num_turbines)
 
 # COMMAND ----------
 
-create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_turbine, start_date='2025-01-01')
+inference_df = create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_turbine, start_date='2025-02-01', return_df=True)
 
 # COMMAND ----------
 
-# Read the data from the Delta table to Spark DataFrame
-spark_df = spark.read.table(f"{catalog}.{db}.turbine_data_train_{num_turbines}")
+from pyspark.sql.functions import col, rand, when
 
-# Display the first few rows of the DataFrame
-display(spark_df.filter("turbine_id='Turbine_1'"))
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 2. Train many ECOD models using Pandas UDF
-# MAGIC Pandas UDF is a feature in PySpark that combines the distributed processing power of Spark with the data manipulation capabilities of pandas It uses Apache Arrow to efficiently transfer data between JVM and Python processes, allowing for vectorized operations that can significantly improve performance compared to traditional row-at-a-time UDFs. The first step in utilizing Pandas UDF is to define a function.
-
-# COMMAND ----------
-
-# Define the Pandas UDF for training ECOD models for each turbine
-def train_ecod_model(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
-    from pyod.models.ecod import ECOD  # Import the ECOD model from PyOD
-    import pickle  # Import pickle for model serialization
-
-    # Extract the turbine ID
-    turbine_id = turbine_pdf['turbine_id'].iloc[0]
-
-    # Identify feature columns by excluding non-feature columns
-    feature_columns = turbine_pdf.columns.drop(['turbine_id', 'timestamp'])
-
-    # Prepare training data by selecting feature columns and filling missing values with 0
-    X_train = turbine_pdf[feature_columns].fillna(0)
-
-    # Count the number of records used for training
-    n_used = turbine_pdf.shape[0]
-
-    # Initialize and train the ECOD model
-    clf = ECOD(n_jobs=1)
-    clf.fit(X_train)
-
-    # Serialize the trained model using base64 encoding
-    model_encoder = urlsafe_b64encode(pickle.dumps(clf)).decode("utf-8")
-
-    # Create a return DataFrame with turbine ID, number of records used, and encoded model
-    returnDF = pd.DataFrame(
-        [[turbine_id, n_used, model_encoder]],
-        columns=["turbine_id", "n_used", "encode_model"]
+for i in range(50, 55):
+    sensor_col = f"sensor_{i}"
+    inference_df = inference_df.withColumn(
+        sensor_col,
+        when(col("turbine_id") == "Turbine_100", col(sensor_col) + rand() + 2.5).otherwise(col(sensor_col))
     )
 
-    # Return the result as a DataFrame
-    return returnDF
+display(inference_df.filter("turbine_id='Turbine_100' or turbine_id='Turbine_101'"))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Next, we define the output schema for the Pandas UDF.
-
-# COMMAND ----------
-
-schema = StructType([
-    StructField('turbine_id', StringType(), True),
-    StructField('n_used', IntegerType(), True),
-    StructField('encode_model', StringType(), True)
-])
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC Finally, we execute the `applyInPandas` method using the previously defined function and schema. The output of this operation is then written to a Delta table. Note that we are adding the current timestamp to the dataframe. This is to distinguish the latest version of the models with their previous ones.
-
-# COMMAND ----------
-
-from pyspark.sql.functions import current_timestamp
-
-# Group the data by turbine_id and train models using applyInPandas
-model_df = spark_df.groupBy('turbine_id').applyInPandas(train_ecod_model, schema=schema)
-
-# Write the output of applyInPandas to a delta table
-(
-  model_df
-  .withColumn("created_at", current_timestamp())
-  .write.mode("overwrite")
-  .saveAsTable(f"{catalog}.{db}.models")
-)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC Let's take a peek at the output table. The `n_used` column shows the number of samples used to train each model, while the `encode_model` column contains the binary representation of each model, which can be easily unpickled and used for inference (as will be demonstrated shortly).
-
-# COMMAND ----------
-
-display(spark.sql(f"""
-SELECT turbine_id, n_used, LEFT(encode_model, 20) AS encode_model, created_at FROM {catalog}.{db}.models LIMIT 10
-"""))
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 3. Perform inference on many ECOD models using Pandas UDF
+# MAGIC ## 2. Perform inference on many ECOD models using Pandas UDF
 # MAGIC
 # MAGIC Databricks recommends MLflow as the best practice for tracking models and experiment runs. However, at the scale of this exercise, logging and tracking thousands of runs in a short time can be challenging due to resource [limitations](https://docs.databricks.com/en/resources/limits.html) on the MLflow Tracking Server. To address this, we are using a Delta table to track runs and models instead. In this section, we will load the models stored in the `models` table and use them for inference. Again, we will use Pandas UDF to efficiently distribute the inference across the cluster.
 
@@ -260,26 +174,17 @@ latest_model_df = model_df_with_row_num.filter(col('row_num') == 1).drop('row_nu
 
 # COMMAND ----------
 
-from pyspark.sql.functions import collect_list
-
-# Define window specification to get the latest 60 timestamps for each turbine_id
-window_spec_60 = Window.partitionBy('turbine_id').orderBy(col('timestamp').desc())
-
-# Add row number to each row within the window
-spark_df_with_row_num = spark_df.withColumn('row_num', row_number().over(window_spec_60))
-
-# Filter to get the latest 60 row for each turbine_id
-latest_df = spark_df_with_row_num.filter(col('row_num') <= 60).drop('row_num')
+from pyspark.sql.functions import collect_list, current_timestamp
 
 # Group by turbine_id and collect values into lists for each column
-latest_df = latest_df.groupBy('turbine_id').agg(
-    *[collect_list(col_name).alias(col_name) for col_name in latest_df.columns if col_name != 'turbine_id']
+inference_df_collected = inference_df.groupBy('turbine_id').agg(
+    *[collect_list(col_name).alias(col_name) for col_name in inference_df.columns if col_name != 'turbine_id']
 )
 
 # COMMAND ----------
 
 # Join the model DataFrame with the latest sensor DataFrame
-joined_df = latest_df.join(latest_model_df, on='turbine_id', how='inner')
+joined_df = inference_df_collected.join(latest_model_df, on='turbine_id', how='inner')
 
 # Apply the inference function using applyInPandas
 result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod, schema=result_schema)
@@ -295,7 +200,7 @@ result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod, sch
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Let's take a peek at the results.
+# MAGIC ## 3. Post prediction analysis
 
 # COMMAND ----------
 
@@ -312,7 +217,57 @@ exploded_results = results.withColumn("zip", F.arrays_zip("timestamp", "anomaly"
         F.col("zip.anomaly_score").alias("anomaly_score"), 
         "scored_at")
 
-display(exploded_results.filter("turbine_id='Turbine_1'").orderBy("timestamp"))
+display(exploded_results.filter("turbine_id='Turbine_100' or turbine_id='Turbine_101'").orderBy("turbine_id", "timestamp"))
+
+# COMMAND ----------
+
+anomaly_counts = exploded_results.filter("anomaly = 1")\
+    .groupBy("turbine_id")\
+    .count()\
+    .withColumnRenamed("count", "anomaly_count")
+
+display(anomaly_counts.orderBy(F.desc("anomaly_count")).limit(10))
+
+# COMMAND ----------
+
+import pickle  # Import pickle for deserialization
+from base64 import urlsafe_b64decode  # Import decoding utility
+
+model_df = spark.sql(f"""
+                     SELECT encode_model FROM {catalog}.{db}.models WHERE turbine_id = 'Turbine_100' ORDER BY created_at DESC LIMIT 1
+                     """).toPandas()
+encode_model = model_df["encode_model"].iloc[0]
+model = pickle.loads(urlsafe_b64decode(encode_model.encode("utf-8")))
+
+inference_pdf_filtered = inference_df.filter("turbine_id = 'Turbine_100'").toPandas().drop(["turbine_id", "timestamp"], axis=1)
+
+anomalies = spark.sql(f"""
+                     SELECT anomaly FROM {catalog}.{db}.results WHERE turbine_id = 'Turbine_100' ORDER BY timestamp
+                     """).toPandas()
+anomalies = anomalies["anomaly"].iloc[0]
+
+# COMMAND ----------
+
+# Evaluate results
+eval_results = evaluate_results(inference_pdf_filtered, anomalies, model, "Test")
+
+# COMMAND ----------
+
+# Identify the most and least anomalous test samples
+scores = model.decision_function(inference_pdf_filtered)
+most_anomalous_index = np.argmax(scores)
+least_anomalous_index = np.argmin(scores)
+
+# Feature names (assuming X_test is a DataFrame)
+feature_names = inference_pdf_filtered.columns.tolist()
+
+# Generate explain_outlier plots for the most anomalous test sample
+print("Most Anomalous Test Sample:")
+explain_test_outlier(model, inference_pdf_filtered, most_anomalous_index, feature_names=feature_names)
+
+# Generate explain_outlier plots for the least anomalous test sample
+print("Least Anomalous Test Sample:")
+explain_test_outlier(model, inference_pdf_filtered, least_anomalous_index, feature_names=feature_names)
 
 # COMMAND ----------
 
