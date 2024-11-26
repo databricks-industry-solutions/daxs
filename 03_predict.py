@@ -130,7 +130,10 @@ def predict_with_ecod(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
     # Remove unnecessary columns before returning the result
     drop_columns = ['n_used', 'encode_model', 'created_at'] + [col for col in turbine_pdf.columns if col.startswith('sensor')]
     result_pdf = turbine_pdf.drop(columns = drop_columns)
-    
+
+    explanation = explainer(X_test, model, test)
+    turbine_pdf['explanation'] = dict() 
+
     return result_pdf.reset_index(drop=True)
 
 # COMMAND ----------
@@ -143,6 +146,7 @@ result_schema = StructType(
     ] 
     + [StructField('anomaly', ArrayType(IntegerType()), True)]
     + [StructField('anomaly_score', ArrayType(FloatType()), True)]
+    + [StructField('explanation', ArrayType(FloatType()), True)]
 )
 
 # COMMAND ----------
