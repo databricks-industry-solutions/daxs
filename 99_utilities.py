@@ -199,7 +199,7 @@ def generate_turbine_data(
     return res_df
   
 
-def create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_turbine, start_date='2025-01-01'):
+def create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_turbine, start_date='2025-01-01', return_df=False):
     """
     Creates a synthetic dataset with specified number of turbines,
     each having a fixed number of sensors between num_sensors,
@@ -213,7 +213,7 @@ def create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_t
         StructField('timestamp', TimestampType(), True),
     ]
     for i in range(1, num_sensors + 1):
-        columns.append(StructField(f'sensor_{i}', FloatType(), True))
+        columns.append(StructField(f'sensor_{i}', FloatType()))
     
     turbine_ids = [f'Turbine_{i}' for i in range(1, num_turbines + 1)]
 
@@ -227,5 +227,9 @@ def create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_t
         )
 
     df = df.groupBy('turbine_id').applyInPandas(generate_turbine_data_fn, schema=StructType(columns))
-    df.write.mode('overwrite').saveAsTable(f'{catalog}.{db}.turbine_data_{num_turbines}')
+
+    if return_df:
+        return df
+    else:
+        df.write.mode('overwrite').saveAsTable(f'{catalog}.{db}.turbine_data_train_{num_turbines}')
 

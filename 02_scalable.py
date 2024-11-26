@@ -82,7 +82,7 @@ create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_turbi
 # COMMAND ----------
 
 # Read the data from the Delta table to Spark DataFrame
-spark_df = spark.read.table(f"{catalog}.{db}.turbine_data_{num_turbines}")
+spark_df = spark.read.table(f"{catalog}.{db}.turbine_data_train_{num_turbines}")
 
 # Display the first few rows of the DataFrame
 display(spark_df.filter("turbine_id='Turbine_1'"))
@@ -175,149 +175,7 @@ SELECT turbine_id, n_used, LEFT(encode_model, 20) AS encode_model, created_at FR
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Perform inference on many ECOD models using Pandas UDF
-# MAGIC
-# MAGIC Databricks recommends MLflow as the best practice for tracking models and experiment runs. However, at the scale of this exercise, logging and tracking thousands of runs in a short time can be challenging due to resource [limitations](https://docs.databricks.com/en/resources/limits.html) on the MLflow Tracking Server. To address this, we are using a Delta table to track runs and models instead. In this section, we will load the models stored in the `models` table and use them for inference. Again, we will use Pandas UDF to efficiently distribute the inference across the cluster.
-
-# COMMAND ----------
-
-# Define the function for inference
-def predict_with_ecod(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
-    import pickle  # Import pickle for deserialization
-    from base64 import urlsafe_b64decode  # Import decoding utility
-    
-    # Extract the turbine ID
-    turbine_id = turbine_pdf['turbine_id'].iloc[0]
-
-    # Identify feature columns by excluding non-feature columns
-    feature_columns = turbine_pdf.columns.drop(['turbine_id', 'timestamp', 'n_used', 'encode_model', 'created_at'])
-
-    # Deserialize the ECOD model from the encoded string
-    encode_model = turbine_pdf['encode_model'].iloc[0]
-    model = pickle.loads(urlsafe_b64decode(encode_model.encode("utf-8")))
-
-    # Prepare test data by selecting feature columns and filling missing values with 0
-    X_test = turbine_pdf[feature_columns].fillna(0)
-    
-    # Explode the dataframe to multiple rows
-    X_test = X_test.explode(X_test.columns.tolist())
-
-    # Cast all columns as float
-    X_test = X_test.astype('float64')
-    
-    # Perform inference using the trained model
-    y_pred = model.predict(X_test)              # Predict anomalies
-    scores = model.decision_function(X_test)    # Compute anomaly scores
-
-    # Append the results to the original dataframe
-    turbine_pdf['anomaly'] = [y_pred]
-    turbine_pdf['anomaly_score'] = [scores]
-
-    # Remove unnecessary columns before returning the result
-    drop_columns = ['n_used', 'encode_model', 'created_at'] + [col for col in turbine_pdf.columns if col.startswith('sensor')]
-    result_pdf = turbine_pdf.drop(columns = drop_columns)
-    
-    return result_pdf.reset_index(drop=True)
-
-# COMMAND ----------
-
-# Define the result schema
-result_schema = StructType(
-    [
-        StructField("turbine_id", StringType()),
-        StructField("timestamp", ArrayType(TimestampType())),
-    ] 
-    + [StructField('anomaly', ArrayType(IntegerType()), True)]
-    + [StructField('anomaly_score', ArrayType(FloatType()), True)]
-)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC We load the models from the Delta table, filtering the `created_at` column to retrieve only the latest version.
-
-# COMMAND ----------
-
-from pyspark.sql.window import Window
-from pyspark.sql.functions import col, row_number
-
-# Read data from the delta table
-model_df = spark.read.table(f"{catalog}.{db}.models")
-
-# Define window specification
-window_spec = Window.partitionBy('turbine_id').orderBy(col('created_at').desc())
-
-# Add row number to each row within the window
-model_df_with_row_num = model_df.withColumn('row_num', row_number().over(window_spec))
-
-# Filter to get the latest row for each turbine_id
-latest_model_df = model_df_with_row_num.filter(col('row_num') == 1).drop('row_num')
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC For demonstration purpose, we perform inference on the training sample. We use the sensor data collected over the last hour simulating a scenario where the outlier detection will be run on an hourly basis in batches.
-
-# COMMAND ----------
-
-from pyspark.sql.functions import collect_list
-
-# Define window specification to get the latest 60 timestamps for each turbine_id
-window_spec_60 = Window.partitionBy('turbine_id').orderBy(col('timestamp').desc())
-
-# Add row number to each row within the window
-spark_df_with_row_num = spark_df.withColumn('row_num', row_number().over(window_spec_60))
-
-# Filter to get the latest 60 row for each turbine_id
-latest_df = spark_df_with_row_num.filter(col('row_num') <= 60).drop('row_num')
-
-# Group by turbine_id and collect values into lists for each column
-latest_df = latest_df.groupBy('turbine_id').agg(
-    *[collect_list(col_name).alias(col_name) for col_name in latest_df.columns if col_name != 'turbine_id']
-)
-
-# COMMAND ----------
-
-# Join the model DataFrame with the latest sensor DataFrame
-joined_df = latest_df.join(latest_model_df, on='turbine_id', how='inner')
-
-# Apply the inference function using applyInPandas
-result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod, schema=result_schema)
-
-# Write the output of applyInPandas to a delta table
-(
-  result_df
-  .withColumn("scored_at", current_timestamp())
-  .write.mode("overwrite")
-  .saveAsTable(f"{catalog}.{db}.results")
-)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC Let's take a peek at the results.
-
-# COMMAND ----------
-
-results = spark.sql(f"""SELECT * FROM {catalog}.{db}.results""")
-
-# COMMAND ----------
-
-exploded_results = results.withColumn("zip", F.arrays_zip("timestamp", "anomaly", "anomaly_score"))\
-    .withColumn("zip", F.explode("zip"))\
-    .select(
-        "turbine_id", 
-        F.col("zip.timestamp").alias("timestamp"), 
-        F.col("zip.anomaly").alias("anomaly"), 
-        F.col("zip.anomaly_score").alias("anomaly_score"), 
-        "scored_at")
-
-display(exploded_results.filter("turbine_id='Turbine_1'").orderBy("timestamp"))
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 4. Results
+# MAGIC ## 3. Results
 # MAGIC
 # MAGIC In this notebook, we demonstrated how ECOD can be used to fit and make prediction on a large dataset by utilizing Pandas UDFs with Spark.
 # MAGIC

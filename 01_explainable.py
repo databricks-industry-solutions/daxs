@@ -75,7 +75,6 @@ process.wait()
 # COMMAND ----------
 
 # Load the data
-#df = spark.table(f"{catalog}.{db}.elevator_predictive_maintenance_dataset").toPandas()
 df = spark.read.csv(f"/Volumes/{catalog}/{db}/{volume}/predictive-maintenance-dataset.csv", header=True, inferSchema=True).toPandas()
 df = df.drop(columns=["ID"])
 print(f"Dataset shape: {df.shape}")
