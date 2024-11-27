@@ -131,4 +131,16 @@ dmypy.json
 .pyre/
 
 .databricks
-.vscode/settings.json
+# IDE
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Jupyter
+.ipynb_checkpoints/
