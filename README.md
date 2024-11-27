@@ -5,7 +5,7 @@
 [![DBR](https://img.shields.io/badge/DBR-ML%20Runtime-red)](https://docs.databricks.com/runtime/mlruntime.html)
 [![GitHub](https://img.shields.io/badge/GitHub-View%20on%20GitHub-blue)](https://github.com/databricks-industry-solutions/daxs)
 
-DAXS is a cutting-edge solution designed for advanced anomaly detection in manufacturing environments, providing explainable, scalable, and cost-effective predictive maintenance capabilities.
+DAXS is a cutting-edge solution designed for advanced anomaly detection in manufacturing environments, providing explainable, scalable, and efficient predictive maintenance capabilities through batch processing.
 
 ## Overview
 
@@ -23,7 +23,7 @@ In today's rapidly evolving industrial landscape, detecting anomalies in manufac
 
 - **Scalable Processing (`02_many_models_ad.py`)**: Framework for handling large-scale datasets and multiple model training.
 
-- **Real-time Inference (`03_predict_anomalies.py`)**: Production-ready inference pipeline for real-time anomaly detection.
+- **Batch Inference (`03_predict.py`)**: Production-ready inference pipeline for efficient batch anomaly detection.
 
 - **Utility Functions (`00_utilities.py`)**: Helper functions for model evaluation, metrics calculation, and anomaly explanation generation.
 
