@@ -131,7 +131,7 @@ def predict_with_ecod(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
     drop_columns = ['n_used', 'encode_model', 'created_at'] + [col for col in turbine_pdf.columns if col.startswith('sensor')]
     result_pdf = turbine_pdf.drop(columns = drop_columns)
 
-    #explanation = explainer(X_test, model, test)
+    #explanation = explainer(X_test, model, test) # correct receall is explainer(model, X_test, top_n=3) or just simply explainer(model, X_test)
     #turbine_pdf['explanation'] = dict() 
 
     return result_pdf.reset_index(drop=True)
