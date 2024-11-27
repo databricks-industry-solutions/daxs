@@ -13,6 +13,15 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Environment Setup
+# MAGIC First, we'll set up our environment by:
+# MAGIC 1. Installing required packages from requirements.txt
+# MAGIC 2. Loading utility functions from our utilities module
+# MAGIC 3. Importing necessary libraries for data analysis and modeling
+
+# COMMAND ----------
+
 # MAGIC %pip install -r requirements.txt --quiet
 # MAGIC dbutils.library.restartPython()
 
@@ -43,6 +52,17 @@ mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Data Storage Setup
+# MAGIC We'll set up our Databricks storage environment by:
+# MAGIC 1. Creating a catalog to organize our data assets
+# MAGIC 2. Setting up a schema (database) within the catalog
+# MAGIC 3. Creating a volume for CSV file storage
+# MAGIC 
+# MAGIC This ensures our data is properly organized and accessible.
+
+# COMMAND ----------
+
 catalog = "daxs"
 db = "default"
 volume = "csv"
@@ -55,6 +75,13 @@ _ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{db}")
 
 # Make sure that the volume exists
 _ = spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{db}.{volume}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Data Download
+# MAGIC We'll download the Elevator Predictive Maintenance Dataset from Kaggle using kagglehub.
+# MAGIC The dataset will be stored in our Databricks volume for further processing.
 
 # COMMAND ----------
 
@@ -109,6 +136,21 @@ display(X.head())
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Model Training Pipeline
+# MAGIC In this section, we will:
+# MAGIC 1. Split our data into training (80%) and test (20%) sets
+# MAGIC 2. Train an ECOD (Empirical Cumulative Distribution Functions) model
+# MAGIC 3. Log the model and its metrics using MLflow
+# MAGIC 4. Register the model for future use
+# MAGIC 
+# MAGIC The ECOD algorithm is particularly effective for anomaly detection as it:
+# MAGIC - Makes no assumptions about data distribution
+# MAGIC - Handles high-dimensional data well
+# MAGIC - Is computationally efficient
+
+# COMMAND ----------
+
 # Split the data
 X_train, X_test = train_test_split(X, test_size=0.2, random_state=42)
 print(f"Training set shape: {X_train.shape}")
@@ -157,6 +199,13 @@ with mlflow.start_run(run_name="ECOD_model") as run:
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Model Loading
+# MAGIC We'll load our champion model from MLflow registry for inference.
+# MAGIC The champion model represents our best performing version that's ready for production use.
+
+# COMMAND ----------
+
 # Load the champion model
 loaded_model = mlflow.pyfunc.load_model(f"models:/{model_name}@champion")
 print(f"Loaded the champion model: {model_name}")
@@ -196,6 +245,16 @@ test_auc = synthetic_auc(clf, X_test)
 
 print(f"Training AUC: {train_auc:.4f}")
 print(f"Testing AUC: {test_auc:.4f}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Model Explanations
+# MAGIC Here we generate explanations for our model's predictions using our custom explainer function.
+# MAGIC The explanations will help us understand:
+# MAGIC - Which features contributed most to each anomaly detection
+# MAGIC - The relative importance (strength) of each feature's contribution
+# MAGIC - The specific values that triggered the anomaly detection
 
 # COMMAND ----------
 
