@@ -166,7 +166,7 @@ def explainer(clf, df, top_n=3):
     
     # Get raw scores
     if hasattr(clf, 'O'):
-        raw_scores = clf.O[-X.shape[0]:] if not training else clf.O
+        raw_scores = clf.O[-X.shape[0]:]
     else:
         raw_scores = clf.decision_function(X)
     
