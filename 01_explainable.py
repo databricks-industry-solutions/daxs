@@ -290,30 +290,6 @@ display(explanations.sort_values('scores', ascending=False))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Synthetic AUC Calculation
-
-# COMMAND ----------
-
-from sklearn.metrics import roc_auc_score
-import numpy as np
-
-# Generate synthetic labels for demonstration purposes
-# Note: In a real scenario, you would use actual labeled data
-np.random.seed(42)
-y_true = np.random.randint(0, 2, size=len(y_test_scores))
-
-# Calculate AUC
-auc = roc_auc_score(y_true, y_test_scores)
-print(f"Synthetic AUC: {auc:.4f}")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC Note: This AUC score is based on synthetic labels and is for demonstration purposes only. In a real-world scenario, you would need actual labeled data to calculate a meaningful AUC score for anomaly detection.
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC © 2024 Databricks, Inc. All rights reserved. The source in this notebook is provided subject to the Databricks License. All included or referenced third party libraries and dataset are subject to the licenses set forth below.
 # MAGIC
 # MAGIC | library / datas                        | description             | license    | source                                              |
