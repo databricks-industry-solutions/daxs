@@ -258,7 +258,7 @@ print(f"Testing AUC: {test_auc:.4f}")
 
 # COMMAND ----------
 
-explanations = explainer(clf, X_test, training=False, explanation_num=3)
+explanations = explainer(clf, X_test, top_n=3)
 display(explanations.sort_values('scores', ascending=False))
 
 # COMMAND ----------

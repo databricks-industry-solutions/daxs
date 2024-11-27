@@ -146,7 +146,7 @@ def explain_test_outlier(clf, X_test, index, columns=None, cutoffs=None,
     plt.show()
 
 
-def explainer(clf, df, training=False, explanation_num=3):
+def explainer(clf, df, top_n=3):
     """
     Generate explanations for anomalies in the dataset.
     Returns a DataFrame with predictions, scores, and explanations in JSON format.
@@ -182,11 +182,11 @@ def explainer(clf, df, training=False, explanation_num=3):
     if len(anomaly_indices) > 0:
         # Rank features for anomalies
         ranked = np.argsort(-raw_scores[anomaly_indices], axis=1)
-        max_explanation_num = min(raw_scores.shape[1], explanation_num)
+        max_n = min(raw_scores.shape[1], top_n)
         
         for idx in anomaly_indices:
             explanations = []
-            for i in range(max_explanation_num):
+            for i in range(max_n):
                 feature_idx = ranked[np.where(anomaly_indices == idx)[0][0], i]
                 feature_name = feature_cols[feature_idx]
                 feature_value = X.iloc[idx, feature_idx]
