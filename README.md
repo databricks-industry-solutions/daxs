@@ -21,11 +21,11 @@ In today's rapidly evolving industrial landscape, detecting anomalies in manufac
 
 - **Explainable Detection (`01_explainable.py`)**: Implementation of ECOD algorithm for transparent anomaly detection on the Elevator Predictive Maintenance Dataset.
 
-- **Scalable Processing (`02_many_models_ad.py`)**: Framework for handling large-scale datasets and multiple model training.
+- **Scalable Processing (`02_scalable.py`)**: Framework for handling large-scale datasets and multiple model training.
 
 - **Batch Inference (`03_predict.py`)**: Production-ready inference pipeline for efficient batch anomaly detection.
 
-- **Utility Functions (`00_utilities.py`)**: Helper functions for model evaluation, metrics calculation, and anomaly explanation generation.
+- **Utility Functions (`99_utilities.py`)**: Helper functions for model evaluation, metrics calculation, and anomaly explanation generation.
 
 ## Getting Started
 
