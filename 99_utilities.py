@@ -147,6 +147,13 @@ def explain_test_outlier(clf, X_test, index, columns=None, cutoffs=None,
 
 
 def explainer(clf, df, training=False, explanation_num=3):
+    """
+    Generate explanations for anomalies in the dataset.
+    Returns a DataFrame with predictions, scores, and explanations in JSON format.
+    Only generates explanations for predicted anomalies (predict=1).
+    """
+    import json
+    
     # Use feature columns stored in the classifier if available
     feature_cols = getattr(clf, 'feature_columns_', df.columns.tolist())
     
@@ -161,24 +168,38 @@ def explainer(clf, df, training=False, explanation_num=3):
     if hasattr(clf, 'O'):
         raw_scores = clf.O[-X.shape[0]:] if not training else clf.O
     else:
-        # If clf.O is not available (e.g., in the deployed model), use decision_function
         raw_scores = clf.decision_function(X)
     
     # Create result DataFrame
-    result_df = pd.DataFrame(X, columns=feature_cols)
-    result_df['predict'] = predict
-    result_df['scores'] = scores
+    result_df = pd.DataFrame({
+        'predict': predict,
+        'scores': scores,
+        'explanations': ''  # Initialize empty explanations
+    })
     
-    # Rank features and calculate explanations
-    ranked = np.argsort(-raw_scores, axis=1)
-    max_explanation_num = min(raw_scores.shape[1], explanation_num)
-    
-    for i in range(max_explanation_num):
-        ranked_ids = ranked[:, i]
-        result_df[f'Explanation_{i+1}_Feature'] = [feature_cols[j] for j in ranked_ids]
-        result_df[f'Explanation_{i+1}_Value'] = X.to_numpy()[np.arange(len(result_df)), ranked_ids]
-        raw_scores_per_sample = raw_scores[np.arange(len(result_df)), ranked_ids]
-        result_df[f'Explanation_{i+1}_Strength'] = raw_scores_per_sample / scores
+    # Generate explanations only for anomalies
+    anomaly_indices = np.where(predict == 1)[0]
+    if len(anomaly_indices) > 0:
+        # Rank features for anomalies
+        ranked = np.argsort(-raw_scores[anomaly_indices], axis=1)
+        max_explanation_num = min(raw_scores.shape[1], explanation_num)
+        
+        for idx in anomaly_indices:
+            explanations = []
+            for i in range(max_explanation_num):
+                feature_idx = ranked[np.where(anomaly_indices == idx)[0][0], i]
+                feature_name = feature_cols[feature_idx]
+                feature_value = X.iloc[idx, feature_idx]
+                strength = (raw_scores[idx, feature_idx] / scores[idx]) * 100
+                
+                explanation = {
+                    'feature': feature_name,
+                    'value': round(float(feature_value), 3),
+                    'contribution': f"{round(strength)}%"
+                }
+                explanations.append(explanation)
+            
+            result_df.loc[idx, 'explanations'] = json.dumps(explanations)
     
     return result_df.reset_index(drop=True)
 
