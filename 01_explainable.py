@@ -19,7 +19,6 @@
 # COMMAND ----------
 
 # MAGIC %run ./99_utilities
-
 # COMMAND ----------
 
 import mlflow
@@ -142,7 +141,7 @@ with mlflow.start_run(run_name="ECOD_model") as run:
     mlflow.sklearn.log_model(clf, "ecod_model", signature=signature)
 
     # Register the model
-    model_name = f"{catalog}.{db}.ECOD_Anomaly_Detection"
+    model_name = f"{catalog}.{db}.ECOD_Anomaly_Detection_{current_user_name[:4]}"
 
     model_version = mlflow.register_model(f"runs:/{mlflow.active_run().info.run_id}/ecod_model", model_name)
 
