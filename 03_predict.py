@@ -146,7 +146,7 @@ def predict_with_ecod(turbine_pdf: pd.DataFrame, explanation_num=3) -> pd.DataFr
     # Remove unnecessary columns before returning the result
     drop_columns = ['n_used', 'encode_model', 'created_at'] + [col for col in turbine_pdf.columns if col.startswith('sensor')]
     result_pdf = turbine_pdf.drop(columns = drop_columns)
-
+    
     return result_pdf.reset_index(drop=True)
 
 # COMMAND ----------
