@@ -84,19 +84,20 @@ for i in range(50, 55):
         when(col("turbine_id") == "Turbine_100", col(sensor_col) + rand() + 2.5).otherwise(col(sensor_col))
     )
 
-display(inference_df.filter("turbine_id='Turbine_100' or turbine_id='Turbine_101'"))
+display(inference_df.filter("turbine_id='Turbine_100'"))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. Perform inference on many ECOD models using Pandas UDF
+# MAGIC ## 2. Perform inference using many ECOD models using Pandas UDF
 # MAGIC
 # MAGIC Databricks recommends MLflow as the best practice for tracking models and experiment runs. However, at the scale of this exercise, logging and tracking thousands of runs in a short time can be challenging due to resource [limitations](https://docs.databricks.com/en/resources/limits.html) on the MLflow Tracking Server. To address this, we are using a Delta table to track runs and models instead. In this section, we will load the models stored in the `models` table and use them for inference. Again, we will use Pandas UDF to efficiently distribute the inference across the cluster.
 
 # COMMAND ----------
 
-# Define the function for inference
-def predict_with_ecod(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
+# Define the pandas udf function for inference
+def predict_with_ecod(turbine_pdf: pd.DataFrame, explanation_num=3) -> pd.DataFrame:
+    import numpy as np
     import pickle  # Import pickle for deserialization
     from base64 import urlsafe_b64decode  # Import decoding utility
     
@@ -126,17 +127,32 @@ def predict_with_ecod(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
     # Append the results to the original dataframe
     turbine_pdf['anomaly'] = [y_pred]
     turbine_pdf['anomaly_score'] = [scores]
+    
+    # Get the anomaly scores of each feature, rank them and calculate explanations
+    raw_scores = model.O[-X_test.shape[0]:]
+    ranked = np.argsort(-raw_scores, axis=1)
+    
+    # Limit the number of explanations to the number of features
+    max_explanation_num = min(raw_scores.shape[1], explanation_num)
 
+    # Add explanations to the result
+    for i in range(1, max_explanation_num + 1):
+        ranked_ids = ranked[:, i]
+        turbine_pdf[f'Explanation_{i}_Feature'] = [[feature_columns[j] for j in ranked_ids]]
+        turbine_pdf[f'Explanation_{i}_Value'] = [X_test.to_numpy()[np.arange(len(y_pred)), ranked_ids]]
+        raw_scores_per_sample = raw_scores[np.arange(len(y_pred)), ranked_ids]
+        turbine_pdf[f'Explanation_{i}_Strength'] = [raw_scores_per_sample / scores]
+    
     # Remove unnecessary columns before returning the result
     drop_columns = ['n_used', 'encode_model', 'created_at'] + [col for col in turbine_pdf.columns if col.startswith('sensor')]
     result_pdf = turbine_pdf.drop(columns = drop_columns)
 
-    #explanation = explainer(X_test, model, test)
-    #turbine_pdf['explanation'] = dict() 
-
     return result_pdf.reset_index(drop=True)
 
 # COMMAND ----------
+
+# Number of explanations to generate
+explanation_num = 10
 
 # Define the result schema
 result_schema = StructType(
@@ -144,10 +160,17 @@ result_schema = StructType(
         StructField("turbine_id", StringType()),
         StructField("timestamp", ArrayType(TimestampType())),
     ] 
-    + [StructField('anomaly', ArrayType(IntegerType()), True)]
-    + [StructField('anomaly_score', ArrayType(FloatType()), True)]
-    #+ [StructField('explanation', ArrayType(FloatType()), True)]
+    + [StructField('anomaly', ArrayType(IntegerType()))]
+    + [StructField('anomaly_score', ArrayType(FloatType()))]
 )
+
+for i in range(1, explanation_num + 1):
+    explainer = [
+        StructField(f'Explanation_{i}_Feature', ArrayType(StringType())), 
+        StructField(f'Explanation_{i}_Value', ArrayType(FloatType())),
+        StructField(f'Explanation_{i}_Strength', ArrayType(FloatType())),
+    ]
+    result_schema = StructType(result_schema.fields + explainer)
 
 # COMMAND ----------
 
@@ -187,11 +210,19 @@ inference_df_collected = inference_df.groupBy('turbine_id').agg(
 
 # COMMAND ----------
 
+import functools
+
 # Join the model DataFrame with the latest sensor DataFrame
 joined_df = inference_df_collected.join(latest_model_df, on='turbine_id', how='inner')
 
+# Passing explanation_num to pandas udf using functools
+predict_with_ecod_fn = functools.partial(
+        predict_with_ecod, 
+        explanation_num=explanation_num,
+        )
+
 # Apply the inference function using applyInPandas
-result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod, schema=result_schema)
+result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod_fn, schema=result_schema)
 
 # Write the output of applyInPandas to a delta table
 (
@@ -221,57 +252,24 @@ exploded_results = results.withColumn("zip", F.arrays_zip("timestamp", "anomaly"
         F.col("zip.anomaly_score").alias("anomaly_score"), 
         "scored_at")
 
-display(exploded_results.filter("turbine_id='Turbine_100' or turbine_id='Turbine_101'").orderBy("turbine_id", "timestamp"))
+display(exploded_results.filter("turbine_id='Turbine_100'").orderBy("turbine_id", "timestamp"))
 
 # COMMAND ----------
+
+import matplotlib.pyplot as plt
 
 anomaly_counts = exploded_results.filter("anomaly = 1")\
     .groupBy("turbine_id")\
     .count()\
     .withColumnRenamed("count", "anomaly_count")
 
-display(anomaly_counts.orderBy(F.desc("anomaly_count")).limit(10))
+anomaly_counts_pd = anomaly_counts.orderBy(F.desc("anomaly_count")).toPandas()
 
-# COMMAND ----------
-
-import pickle  # Import pickle for deserialization
-from base64 import urlsafe_b64decode  # Import decoding utility
-
-model_df = spark.sql(f"""
-                     SELECT encode_model FROM {catalog}.{db}.models WHERE turbine_id = 'Turbine_100' ORDER BY created_at DESC LIMIT 1
-                     """).toPandas()
-encode_model = model_df["encode_model"].iloc[0]
-model = pickle.loads(urlsafe_b64decode(encode_model.encode("utf-8")))
-
-inference_pdf_filtered = inference_df.filter("turbine_id = 'Turbine_100'").toPandas().drop(["turbine_id", "timestamp"], axis=1)
-
-anomalies = spark.sql(f"""
-                     SELECT anomaly FROM {catalog}.{db}.results WHERE turbine_id = 'Turbine_100' ORDER BY timestamp
-                     """).toPandas()
-anomalies = anomalies["anomaly"].iloc[0]
-
-# COMMAND ----------
-
-# Evaluate results
-eval_results = evaluate_results(inference_pdf_filtered, anomalies, model, "Test")
-
-# COMMAND ----------
-
-# Identify the most and least anomalous test samples
-scores = model.decision_function(inference_pdf_filtered)
-most_anomalous_index = np.argmax(scores)
-least_anomalous_index = np.argmin(scores)
-
-# Feature names (assuming X_test is a DataFrame)
-feature_names = inference_pdf_filtered.columns.tolist()
-
-# Generate explain_outlier plots for the most anomalous test sample
-print("Most Anomalous Test Sample:")
-explain_test_outlier(model, inference_pdf_filtered, most_anomalous_index, feature_names=feature_names)
-
-# Generate explain_outlier plots for the least anomalous test sample
-print("Least Anomalous Test Sample:")
-explain_test_outlier(model, inference_pdf_filtered, least_anomalous_index, feature_names=feature_names)
+plt.hist(anomaly_counts_pd["anomaly_count"], bins=28)
+plt.xlabel('Turbine ID')
+plt.ylabel('Anomaly Count')
+plt.title('Histogram of Anomaly Counts')
+plt.show()
 
 # COMMAND ----------
 
