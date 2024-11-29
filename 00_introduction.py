@@ -1,18 +1,25 @@
 # Databricks notebook source
 
 # MAGIC %md
-# MAGIC # DAXS: Detection of Anomalies, eXplainable and Scalable
+# MAGIC # Training 10,000 Anomaly Detection Models for Under $1 on One Billion Records
 # MAGIC 
-# MAGIC **An Advanced Solution for Anomaly Detection in Manufacturing**
+# MAGIC **A Cost-Optimized Solution for Large-Scale Industrial IoT Anomaly Detection**
+# MAGIC
+# MAGIC ![DAXS Architecture](files/DAXS.PNG)
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Introduction
 # MAGIC 
-# MAGIC In today's rapidly evolving industrial landscape, the ability to detect anomalies in manufacturing processes is crucial for maintaining efficiency, reducing downtime, and ensuring product quality. Traditional anomaly detection methods often fall short due to their lack of explainability, scalability, or cost-effectiveness.
+# MAGIC In today's industrial IoT landscape, organizations need to monitor thousands of assets generating billions of sensor readings. However, the computational costs of processing such massive datasets have traditionally been prohibitive. DAXS shatters this barrier by demonstrating how to:
 # MAGIC 
-# MAGIC **DAXS (Detection of Anomalies, eXplainable and Scalable)** is a cutting-edge solution designed to address these challenges head-on. Leveraging advanced algorithms, DAXS provides an explainable, scalable, and cost-effective approach to anomaly detection in manufacturing environments.
+# MAGIC - Train 10,000 individual anomaly detection models
+# MAGIC - Process over 1 billion sensor readings (10,000 turbines × 100 sensors × 1,440 daily samples)
+# MAGIC - Generate detailed explanations for every prediction
+# MAGIC - Complete the entire pipeline for under $1
+# MAGIC 
+# MAGIC The architecture diagram above shows how DAXS achieves this through efficient data partitioning, parallel processing with Pandas UDFs, and optimized model serialization. This solution makes industrial-scale anomaly detection accessible to organizations of any size.
 
 # COMMAND ----------
 
@@ -30,13 +37,13 @@
 # MAGIC %md
 # MAGIC ## Why DAXS?
 # MAGIC 
-# MAGIC The manufacturing industry faces significant challenges when implementing machine learning solutions for anomaly detection:
+# MAGIC DAXS addresses three critical challenges in industrial IoT anomaly detection:
 # MAGIC 
-# MAGIC - **Explainability**: Understanding which specific sensor or component is causing an anomaly is crucial for timely and effective interventions. DAXS provides clear insights into the contributing factors of detected anomalies.
+# MAGIC - **Ultra Cost-Efficiency**: Process billions of records and train thousands of models for less than $1, making enterprise-scale anomaly detection accessible to any organization.
 # MAGIC 
-# MAGIC - **Scalability**: Handling massive amounts of data and creating thousands of models individually across numerous assets or facilities can be impractical. DAXS is designed to scale seamlessly, processing large datasets without incurring prohibitive costs.
+# MAGIC - **Massive Scalability**: Handle 10,000+ assets and 100+ sensors per asset efficiently through optimized parallel processing and smart data partitioning.
 # MAGIC 
-# MAGIC - **Cost**: The computational and operational costs associated with large-scale machine learning can be substantial. DAXS offers a cost-effective solution that reduces these expenses significantly.
+# MAGIC - **Detailed Explainability**: For every anomaly detected, identify the exact sensors and measurements that contributed, enabling immediate root cause analysis.
 
 # COMMAND ----------
 

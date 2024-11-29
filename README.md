@@ -1,11 +1,11 @@
 <img src=https://raw.githubusercontent.com/databricks-industry-solutions/.github/main/profile/solacc_logo.png width="600px">
 
-# DAXS: Detection of Anomalies, eXplainable and Scalable
+# Training 10,000 Anomaly Detection Models for Under $1 on One Billion Records with Explainable Predictions
 
 [![DBR](https://img.shields.io/badge/DBR-ML%20Runtime-red)](https://docs.databricks.com/runtime/mlruntime.html)
 [![GitHub](https://img.shields.io/badge/GitHub-View%20on%20GitHub-blue)](https://github.com/databricks-industry-solutions/daxs)
 
-DAXS is a cutting-edge solution designed for advanced anomaly detection in manufacturing environments, providing explainable, scalable, and efficient predictive maintenance capabilities through batch processing.
+DAXS (Detection of Anomalies, eXplainable and Scalable) demonstrates how to train and deploy 10,000 anomaly detection models on over one billion sensor readings for less than $1, while providing detailed explanations for each prediction. This solution showcases extreme cost optimization for large-scale industrial IoT anomaly detection.
 
 ## Overview
 
