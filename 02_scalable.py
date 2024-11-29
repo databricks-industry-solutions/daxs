@@ -5,7 +5,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC In this notebook, we will demonstrate how ECOD can be applied to a large dataset by utilizing Pandas UDFs with Spark.
+# MAGIC In this notebook, we will demonstrate how ECOD models can be trained on a large dataset by utilizing Pandas UDFs with Spark.
 
 # COMMAND ----------
 
@@ -91,6 +91,9 @@ display(spark_df.filter("turbine_id='Turbine_1'"))
 
 # MAGIC %md
 # MAGIC ## 2. Train many ECOD models using Pandas UDF
+# MAGIC
+# MAGIC Databricks recommends MLflow as the best practice for tracking models and experiment runs. However, at the scale of this exercise, logging and tracking thousands of runs in a short time can be challenging due to resource [limitations](https://docs.databricks.com/en/resources/limits.html) on the MLflow Tracking Server. To address this, we are using a Delta table to track runs and models instead. 
+# MAGIC
 # MAGIC Pandas UDF is a feature in PySpark that combines the distributed processing power of Spark with the data manipulation capabilities of pandas It uses Apache Arrow to efficiently transfer data between JVM and Python processes, allowing for vectorized operations that can significantly improve performance compared to traditional row-at-a-time UDFs. The first step in utilizing Pandas UDF is to define a function.
 
 # COMMAND ----------
@@ -175,11 +178,11 @@ SELECT turbine_id, n_used, LEFT(encode_model, 20) AS encode_model, created_at FR
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Results
+# MAGIC ## 3. Wrap up
 # MAGIC
-# MAGIC In this notebook, we demonstrated how ECOD can be used to fit and make prediction on a large dataset by utilizing Pandas UDFs with Spark.
+# MAGIC In this notebook, we demonstrated how ECOD can be used to fit thousands of models to a large dataset by utilizing Pandas UDFs with Spark.
 # MAGIC
-# MAGIC To execute this notebook, we used a multi-node interactive cluster consisting of 8 workers, each equipped with 4 cores and 16 GB of memory. The setup corresponds to [m5d.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on AWS (12.42 DBU/h) or [Standard_D4ds_v5](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on Azure (18 DBU/h). Training individual models for 1,440 time points across 10,000 turbines with 100 sensors took approximately 4 minutes. Performing inference on the 10,000 trained models, each executed 60 times, required about 7.5 minutes. 
+# MAGIC To execute this notebook, we used a multi-node interactive cluster consisting of 8 workers, each equipped with 4 cores and 16 GB of memory. The setup corresponds to [m5d.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on AWS (12.42 DBU/h) or [Standard_D4ds_v5](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on Azure (18 DBU/h). Training individual models for 1,440 time points across 10,000 turbines with 100 sensors took approximately 4 minutes.
 # MAGIC
 # MAGIC An efficient implementation of ECOD combined with Pandas UDF allows these [embarrasigly parallelizable](https://en.wikipedia.org/wiki/Embarrassingly_parallel) operations to scale proportionally with the size of the cluster: i.e., number of cores. 
 

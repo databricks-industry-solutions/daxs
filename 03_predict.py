@@ -5,7 +5,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC In this notebook, we will demonstrate how ECOD can be applied to a large dataset by utilizing Pandas UDFs with Spark.
+# MAGIC In this notebook, we will demonstrate how trained ECOD models can be used to perform inference on a large dataset by utilizing Pandas UDFs with Spark.
 
 # COMMAND ----------
 
@@ -21,6 +21,7 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,Run a utility notebook
 # MAGIC %run ./99_utilities
 
 # COMMAND ----------
@@ -30,11 +31,16 @@ import numpy as np
 import pandas as pd
 from pyod.models.ecod import ECOD
 from pyspark.sql.functions import col
-from pyspark.sql.types import StructType, StructField, StringType, FloatType, IntegerType, TimestampType, ArrayType
+from pyspark.sql.types import StructType, StructField, StringType, FloatType, IntegerType, TimestampType, MapType, ArrayType
 from pyspark.sql import functions as F
 import mlflow
 from base64 import urlsafe_b64encode, urlsafe_b64decode
 import pickle
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Make sure you've run the previous notebook and the catalog and the schema exist.
 
 # COMMAND ----------
 
@@ -47,7 +53,7 @@ db = "default"
 # MAGIC %md
 # MAGIC ## 2. Synthetic data creation
 # MAGIC
-# MAGIC To demonstrate how DAXS efficiently handles large-scale inference, we will generate a synthetic dataset. The dataset simulates a fictitious scenario where thousands of wind turbines are monitored in the field. Each turbine is equipped with a hundred sensors, generating readings sampled at a one-minute frequency. Our objective is to train thousands of individual ECOD models and use them for inference. To achieve this, we leverage Pandas UDFs for distributed processing.
+# MAGIC To demonstrate how DAXS can efficiently handle large-scale inference, we will create a synthetic dataset simulating a hypothetical scenario. In this scenario, thousands of wind turbines are monitored in the field, each equipped with a hundred sensors generating data at one-minute intervals. We've collected an hour's worth of sensor readings and are now prepared to apply batch inference to identify any signs of turbine failures. As in the training notebook, we will leverage Pandas UDFs for distributed processing.
 
 # COMMAND ----------
 
@@ -67,7 +73,7 @@ sqlContext.setConf("spark.sql.shuffle.partitions", num_turbines)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC We run a custom function, `create_turbine_dataset`, defined in the `99_utilities` notebook to create the dataset. Under the hood, the function leverages the Pandas UDF to generate data from a hundred sensors across thousands of turbines. Once generated, the dataset is written to a Delta table: `{catalog}.{db}.turbine_data_{num_turbines}`.
+# MAGIC We run a custom function, `create_turbine_dataset`, defined in the `99_utilities` notebook to create the dataset. The argument `return_df=True` enables you to load the generated dataset into a Spark DataFrame instead of saving it directly to a Delta table.
 
 # COMMAND ----------
 
@@ -75,23 +81,32 @@ inference_df = create_turbine_dataset(catalog, db, num_turbines, num_sensors, sa
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC Since this is a simulation, we will introduce anomalies into some of the sensor readings for one turbine. Later, we will evaluate whether ECOD can effectively detect these anomalies.
+
+# COMMAND ----------
+
 from pyspark.sql.functions import col, rand, when
 
+# Iterate over sensor columns from "sensor_50" to "sensor_54"
 for i in range(50, 55):
-    sensor_col = f"sensor_{i}"
+    sensor_col = f"sensor_{i}"  # Get the sensor column names
     inference_df = inference_df.withColumn(
         sensor_col,
-        when(col("turbine_id") == "Turbine_100", col(sensor_col) + rand() + 2.5).otherwise(col(sensor_col))
+        # If turbine_id is "Turbine_100", add randomness and offset (2.5) to the sensor value
+        when(col("turbine_id") == "Turbine_100", col(sensor_col) + rand() + 2.5)
+        .otherwise(col(sensor_col))  # Otherwise, keep the original value
     )
 
 display(inference_df.filter("turbine_id='Turbine_100'"))
+
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 2. Perform inference using many ECOD models using Pandas UDF
 # MAGIC
-# MAGIC Databricks recommends MLflow as the best practice for tracking models and experiment runs. However, at the scale of this exercise, logging and tracking thousands of runs in a short time can be challenging due to resource [limitations](https://docs.databricks.com/en/resources/limits.html) on the MLflow Tracking Server. To address this, we are using a Delta table to track runs and models instead. In this section, we will load the models stored in the `models` table and use them for inference. Again, we will use Pandas UDF to efficiently distribute the inference across the cluster.
+# MAGIC In this section, we will load the models stored in the `models` table and use them for inference. Again, we will use Pandas UDF to efficiently distribute the inference across the cluster.
 
 # COMMAND ----------
 
@@ -133,15 +148,26 @@ def predict_with_ecod(turbine_pdf: pd.DataFrame, explanation_num=3) -> pd.DataFr
     ranked = np.argsort(-raw_scores, axis=1)
     
     # Limit the number of explanations to the number of features
-    max_explanation_num = min(raw_scores.shape[1], explanation_num)
+    max_n = min(raw_scores.shape[1], explanation_num)
 
-    # Add explanations to the result
-    for i in range(1, max_explanation_num + 1):
-        ranked_ids = ranked[:, i]
-        turbine_pdf[f'Explanation_{i}_Feature'] = [[feature_columns[j] for j in ranked_ids]]
-        turbine_pdf[f'Explanation_{i}_Value'] = [X_test.to_numpy()[np.arange(len(y_pred)), ranked_ids]]
-        raw_scores_per_sample = raw_scores[np.arange(len(y_pred)), ranked_ids]
-        turbine_pdf[f'Explanation_{i}_Strength'] = [raw_scores_per_sample / scores]
+    # Add explanations
+    explanations = [] 
+    num_observations = len(y_pred)
+    for idx in range(num_observations):
+        explaners = [] 
+        for i in range(max_n):
+            feature_idx = ranked[idx, i]
+            feature_name = feature_columns[feature_idx]
+            feature_value = X_test.iloc[idx, feature_idx]
+            strength = (raw_scores[idx, feature_idx] / scores[idx]) * 100
+            explaner = {
+                f'{i+1}_feature': feature_name,
+                f'{i+1}_value': str(round(float(feature_value), 3)),
+                f'{i+1}_contribution': f"{round(strength)}%"
+            }
+            explaners.append(explaner)
+        explanations.append(explaners)    
+    turbine_pdf['explanations'] = [explanations]
     
     # Remove unnecessary columns before returning the result
     drop_columns = ['n_used', 'encode_model', 'created_at'] + [col for col in turbine_pdf.columns if col.startswith('sensor')]
@@ -151,8 +177,13 @@ def predict_with_ecod(turbine_pdf: pd.DataFrame, explanation_num=3) -> pd.DataFr
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC We define the output schema for the Pandas UDF.
+
+# COMMAND ----------
+
 # Number of explanations to generate
-explanation_num = 10
+explanation_num = 5
 
 # Define the result schema
 result_schema = StructType(
@@ -162,15 +193,8 @@ result_schema = StructType(
     ] 
     + [StructField('anomaly', ArrayType(IntegerType()))]
     + [StructField('anomaly_score', ArrayType(FloatType()))]
+    + [StructField('explanations', ArrayType(ArrayType(MapType(StringType(), StringType()))))]
 )
-
-for i in range(1, explanation_num + 1):
-    explainer = [
-        StructField(f'Explanation_{i}_Feature', ArrayType(StringType())), 
-        StructField(f'Explanation_{i}_Value', ArrayType(FloatType())),
-        StructField(f'Explanation_{i}_Strength', ArrayType(FloatType())),
-    ]
-    result_schema = StructType(result_schema.fields + explainer)
 
 # COMMAND ----------
 
@@ -197,7 +221,7 @@ latest_model_df = model_df_with_row_num.filter(col('row_num') == 1).drop('row_nu
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC For demonstration purpose, we perform inference on the training sample. We use the sensor data collected over the last hour simulating a scenario where the outlier detection will be run on an hourly basis in batches.
+# MAGIC We will perform inference on the synthetic dataset generate above.
 
 # COMMAND ----------
 
@@ -207,6 +231,11 @@ from pyspark.sql.functions import collect_list, current_timestamp
 inference_df_collected = inference_df.groupBy('turbine_id').agg(
     *[collect_list(col_name).alias(col_name) for col_name in inference_df.columns if col_name != 'turbine_id']
 )
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Let's run the Pandas UDF. The result will be written into a Delta table called `results`.
 
 # COMMAND ----------
 
@@ -235,7 +264,9 @@ result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod_fn, 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Post prediction analysis
+# MAGIC ## 3. Post inference analysis
+# MAGIC
+# MAGIC Let's conduct a post-inference analysis to determine if DAXS successfully detected the anomalies we introduced into our dataset. To do this, we will first query the `results` table.
 
 # COMMAND ----------
 
@@ -243,16 +274,20 @@ results = spark.sql(f"""SELECT * FROM {catalog}.{db}.results""")
 
 # COMMAND ----------
 
-exploded_results = results.withColumn("zip", F.arrays_zip("timestamp", "anomaly", "anomaly_score"))\
+exploded_results = results.withColumn("zip", F.arrays_zip("timestamp", "anomaly", "anomaly_score", "explanations"))\
     .withColumn("zip", F.explode("zip"))\
     .select(
         "turbine_id", 
         F.col("zip.timestamp").alias("timestamp"), 
         F.col("zip.anomaly").alias("anomaly"), 
         F.col("zip.anomaly_score").alias("anomaly_score"), 
+        F.col("zip.explanations").alias("explanations"), 
         "scored_at")
 
-display(exploded_results.filter("turbine_id='Turbine_100'").orderBy("turbine_id", "timestamp"))
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC The distribution of anomaly data points per turbine resembles a half-normal distribution. However, when examining the turbines with the highest number of anomaly data points, one clearly stands out—it's our Turbine_100!
 
 # COMMAND ----------
 
@@ -265,20 +300,31 @@ anomaly_counts = exploded_results.filter("anomaly = 1")\
 
 anomaly_counts_pd = anomaly_counts.orderBy(F.desc("anomaly_count")).toPandas()
 
-plt.hist(anomaly_counts_pd["anomaly_count"], bins=28)
+plt.hist(anomaly_counts_pd["anomaly_count"], bins=20)
 plt.xlabel('Turbine ID')
 plt.ylabel('Anomaly Count')
 plt.title('Histogram of Anomaly Counts')
 plt.show()
 
+display(anomaly_counts.orderBy(F.desc("anomaly_count")).limit(10))
+
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4. Results
+# MAGIC By leveraging the explainability features of DAXS, we can delve deeper to identify which sensor readings contributed to the anomaly assignments. This information is stored in the `explanations` column of the `results` table.
+
+# COMMAND ----------
+
+display(exploded_results.filter("turbine_id='Turbine_100'").orderBy("turbine_id", "timestamp"))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 4. Wrap up
 # MAGIC
-# MAGIC In this notebook, we demonstrated how ECOD can be used to fit and make prediction on a large dataset by utilizing Pandas UDFs with Spark.
+# MAGIC In this notebook, we demonstrated how ECOD can be used to make inference using thousands of models by leveraging Pandas UDFs with Spark.
 # MAGIC
-# MAGIC To execute this notebook, we used a multi-node interactive cluster consisting of 8 workers, each equipped with 4 cores and 16 GB of memory. The setup corresponds to [m5d.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on AWS (12.42 DBU/h) or [Standard_D4ds_v5](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on Azure (18 DBU/h). Training individual models for 1,440 time points across 10,000 turbines with 100 sensors took approximately 4 minutes. Performing inference on the 10,000 trained models, each executed 60 times, required about 7.5 minutes. 
+# MAGIC To execute this notebook, we used a multi-node interactive cluster consisting of 8 workers, each equipped with 4 cores and 16 GB of memory. The setup corresponds to [m5d.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on AWS (12.42 DBU/h) or [Standard_D4ds_v5](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on Azure (18 DBU/h). Performing inference on the 10,000 trained models, each executed 60 times, required about 8 minutes. 
 # MAGIC
 # MAGIC An efficient implementation of ECOD combined with Pandas UDF allows these [embarrasigly parallelizable](https://en.wikipedia.org/wiki/Embarrassingly_parallel) operations to scale proportionally with the size of the cluster: i.e., number of cores. 
 
