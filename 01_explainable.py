@@ -22,12 +22,15 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,Install necessary libraries
 # MAGIC %pip install -r requirements.txt --quiet
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
 
+# DBTITLE 1,Run a utility notebook
 # MAGIC %run ./99_utilities
+
 # COMMAND ----------
 
 import mlflow
@@ -58,7 +61,7 @@ mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
 # MAGIC 1. Creating a catalog to organize our data assets
 # MAGIC 2. Setting up a schema (database) within the catalog
 # MAGIC 3. Creating a volume for CSV file storage
-# MAGIC 
+# MAGIC
 # MAGIC This ensures our data is properly organized and accessible.
 
 # COMMAND ----------
@@ -143,7 +146,7 @@ display(X.head())
 # MAGIC 2. Train an ECOD (Empirical Cumulative Distribution Functions) model
 # MAGIC 3. Log the model and its metrics using MLflow
 # MAGIC 4. Register the model for future use
-# MAGIC 
+# MAGIC
 # MAGIC The ECOD algorithm is particularly effective for anomaly detection as it:
 # MAGIC - Makes no assumptions about data distribution
 # MAGIC - Handles high-dimensional data well
