@@ -250,7 +250,12 @@ results_df = pd.DataFrame({
     'scores': scores,
     'explanations': explanations
 })
+
+# Display top anomalies
 display(results_df.sort_values('scores', ascending=False).head(10))
+
+# Evaluate results
+evaluate_results(results_df)
 
 # COMMAND ----------
 

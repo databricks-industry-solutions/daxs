@@ -61,26 +61,26 @@ def create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_t
 
 # COMMAND ----------
 
-def evaluate_results(X_data, y_pred, clf, set_name):
-    df_results = X_data.copy()
-    df_results['anomaly'] = y_pred
-    df_results['anomaly_score'] = clf.decision_function(X_data)
+def evaluate_results(results_df):
+    """
+    Evaluate and visualize anomaly detection results from predict_explain output.
+    
+    Args:
+        results_df: DataFrame containing 'predict' and 'scores' columns
+    """
+    n_anomalies = results_df['predict'].sum()
+    pct_anomalies = (n_anomalies/len(results_df))*100
+    
+    print(f"\nResults Summary:")
+    print(f"Detected anomalies: {n_anomalies} ({pct_anomalies:.2f}%)")
 
-    print(f"\n--- {set_name} Set Results ---")
-    print(f"Detected anomalies: {sum(y_pred)} ({sum(y_pred)/len(y_pred)*100:.2f}%)")
-
-    # Display top 10 anomalies
-    display(df_results.sort_values('anomaly_score', ascending=False).head(10))
-
-    # Visualize anomaly scores
+    # Visualize anomaly scores distribution
     plt.figure(figsize=(12, 6))
-    plt.hist(df_results['anomaly_score'], bins=50)
-    plt.title(f'Distribution of Anomaly Scores - {set_name} Set')
+    plt.hist(results_df['scores'], bins=50)
+    plt.title('Distribution of Anomaly Scores')
     plt.xlabel('Anomaly Score')
     plt.ylabel('Frequency')
     plt.show()
-
-    return df_results
 
 
 
