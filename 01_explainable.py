@@ -7,14 +7,17 @@
 # MAGIC %md
 # MAGIC # Elevator Predictive Maintenance Dataset: Anomaly Detection
 # MAGIC
-# MAGIC This notebook demonstrates the use of the Elevator Predictive Maintenance Dataset from Huawei German Research Center for anomaly detection. We'll use the ECOD (Empirical Cumulative Distribution Functions for Outlier Detection) algorithm from the PyOD library.
+# MAGIC This notebook demonstrates the use of the Elevator Predictive Maintenance Dataset from Huawei German Research Center for anomaly detection using the ECOD (Empirical Cumulative Distribution Functions for Outlier Detection) algorithm.
 # MAGIC
-# MAGIC Dataset details:
-# MAGIC - Contains operation data from IoT sensors for predictive maintenance in the elevator industry.
-# MAGIC - Timeseries data sampled at 4Hz during high-peak and evening elevator usage (16:30 to 23:30).
-# MAGIC - Includes data from electromechanical sensors (Door Ball Bearing Sensor), ambiance (Humidity), and physics (Vibration).
+# MAGIC Dataset characteristics:
+# MAGIC - Contains IoT sensor data for predictive maintenance in the elevator industry.
+# MAGIC - Features time series data sampled at 4Hz during peak usage (16:30 to 23:30).
+# MAGIC - Includes readings from:
+# MAGIC   - Electromechanical sensors (Door Ball Bearing).
+# MAGIC   - Environmental sensors (Humidity).
+# MAGIC   - Physical sensors (Vibration).
 # MAGIC
-# MAGIC Source: [Kaggle - Elevator Predictive Maintenance Dataset](https://www.kaggle.com/datasets/shivamb/elevator-predictive-maintenance-dataset)
+# MAGIC Source: [Kaggle - Elevator Predictive Maintenance Dataset](https://www.kaggle.com/datasets/shivamb/elevator-predictive-maintenance-dataset).
 
 # COMMAND ----------
 
