@@ -144,6 +144,7 @@ display(df.describe())
 
 # COMMAND ----------
 
+# DBTITLE 1,Handle missing values and prepare features
 # Handle missing values
 X = df.fillna(-99)
 
@@ -169,6 +170,7 @@ display(X.head())
 
 # COMMAND ----------
 
+# DBTITLE 1,Split data into training and test sets
 # Split the data
 X_train, X_test = train_test_split(X, test_size=0.2, random_state=42)
 print(f"Training set shape: {X_train.shape}")
@@ -215,6 +217,7 @@ with mlflow.start_run(run_name="ECOD_model") as run:
 
 # COMMAND ----------
 
+# DBTITLE 1,Load the champion model from MLflow registry
 # Load the champion model
 loaded_model = mlflow.pyfunc.load_model(f"models:/{model_name}@champion")
 print(f"Loaded the champion model: {model_name}")
@@ -233,6 +236,7 @@ print(f"Loaded the champion model: {model_name}")
 
 # COMMAND ----------
 
+# DBTITLE 1,Generate predictions and explanations
 predict, scores, explanations = predict_explain(clf, X_test, X_test.columns, top_n=3)
 # Create a DataFrame with the results
 results_df = pd.DataFrame({
@@ -256,6 +260,7 @@ display(results_df.sort_values('scores', ascending=False).head(10))
 
 # COMMAND ----------
 
+# DBTITLE 1,Evaluate model performance
 # Evaluate results
 evaluate_results(results_df)
 
