@@ -231,22 +231,16 @@ print(f"Loaded the champion model: {model_name}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Model Results
+# MAGIC ## Results Summary
 # MAGIC 
-# MAGIC The ECOD model detected:
-# MAGIC - Training set: 8,960 anomalies (10.00% of data points)
-# MAGIC - Test set: 2,212 anomalies (9.87% of data points)
+# MAGIC The ECOD model identified anomalies in:
+# MAGIC - Training set: 8,960 records (10.00%)
+# MAGIC - Test set: 2,212 records (9.87%)
 # MAGIC 
-# MAGIC These results align well with our configured contamination parameter of 0.1 (10%).
-# MAGIC 
-# MAGIC ## Model Explanations
-# MAGIC 
-# MAGIC Let's examine the explanations for detected anomalies. For example, in one of the most anomalous cases:
-# MAGIC - The 'revolutions' sensor showed an unusually high reading of 16.933 (contributing 18% to the anomaly score)
-# MAGIC - The 'x1' sensor had an extreme value of 90.132 (18% contribution)
-# MAGIC - The 'x3' sensor showed an unusual reading of 0.231 (18% contribution)
-# MAGIC 
-# MAGIC This level of detail helps maintenance teams quickly identify which sensors are indicating potential issues.
+# MAGIC For each anomaly, DAXS provides detailed explanations showing which sensors contributed most to the detection. For example:
+# MAGIC - Sensor 'revolutions': 16.933 (18% contribution)
+# MAGIC - Sensor 'x1': 90.132 (18% contribution) 
+# MAGIC - Sensor 'x3': 0.231 (18% contribution)
 
 # COMMAND ----------
 
@@ -266,23 +260,15 @@ display(explanations.sort_values('scores', ascending=False).head(10))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 8. Conclusion and Next Steps
+# MAGIC ## 8. Conclusion
 # MAGIC
-# MAGIC In this notebook, we've performed anomaly detection on the Elevator Predictive Maintenance Dataset using the ECOD algorithm. Here are the key findings and potential next steps:
+# MAGIC This notebook demonstrated DAXS's core capabilities:
 # MAGIC
-# MAGIC 1. We successfully identified anomalies in both the training and test sets, with approximately 10% of data points flagged as anomalies.
-# MAGIC 2. The distribution of anomaly scores shows a clear separation between normal and anomalous data points.
-# MAGIC 3. We've added functionality to visualize the dimensional outlier graphs for the most and least anomalous cases in the test set, providing more insights into the nature of the anomalies.
+# MAGIC 1. Efficient anomaly detection using the ECOD algorithm
+# MAGIC 2. Detailed explanations for each detected anomaly
+# MAGIC 3. Visualization tools for understanding anomaly patterns
 # MAGIC
-# MAGIC Next steps to improve the model and gain more insights:
-# MAGIC
-# MAGIC 1. Experiment with different contamination rates to fine-tune the anomaly detection threshold.
-# MAGIC 2. Try other anomaly detection algorithms (e.g., Isolation Forest, Local Outlier Factor) and compare their performance.
-# MAGIC 3. Perform time series analysis to identify temporal patterns in anomalies.
-# MAGIC 4. Investigate the root causes of detected anomalies by analyzing the feature values of anomalous data points.
-# MAGIC 5. Develop a real-time anomaly detection system for continuous monitoring of elevator performance.
-# MAGIC 6. Collaborate with domain experts to validate the detected anomalies and refine the model based on their feedback.
-# MAGIC 7. Analyze the dimensional outlier graphs to identify which features contribute most to the anomalies and use this information for feature selection or engineering.
+# MAGIC The next notebook will show how to scale this approach to handle thousands of models and billions of sensor readings.
 
 # COMMAND ----------
 
