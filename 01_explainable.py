@@ -186,12 +186,6 @@ with mlflow.start_run(run_name="ECOD_model") as run:
     mlflow.log_param("contamination", 0.1)
     mlflow.log_param("n_jobs", -1)
 
-    # Log metrics
-    train_auc = synthetic_auc(clf, X_train)
-    test_auc = synthetic_auc(clf, X_test)
-    mlflow.log_metric("train_auc", train_auc)
-    mlflow.log_metric("test_auc", test_auc)
-
     # Log model
     signature = infer_signature(X_test, y_test_pred) 
     mlflow.sklearn.log_model(clf, "ecod_model", signature=signature)
@@ -236,11 +230,8 @@ print(f"Loaded the champion model: {model_name}")
 # MAGIC The ECOD model identified anomalies in:
 # MAGIC - Training set: 8,960 records (10.00%)
 # MAGIC - Test set: 2,212 records (9.87%)
-# MAGIC 
-# MAGIC For each anomaly, DAXS provides detailed explanations showing which sensors contributed most to the detection. For example:
-# MAGIC - Sensor 'revolutions': 16.933 (18% contribution)
-# MAGIC - Sensor 'x1': 90.132 (18% contribution) 
-# MAGIC - Sensor 'x3': 0.231 (18% contribution)
+# MAGIC These results align well with our configured contamination parameter of 0.1 (10%).
+
 
 # COMMAND ----------
 
