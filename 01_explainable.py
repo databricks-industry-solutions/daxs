@@ -61,6 +61,7 @@ from mlflow.models.signature import infer_signature
 # Anomaly Detection
 from pyod.models.ecod import ECOD
 
+# DBTITLE 1,Configure MLflow experiment
 # Get current user and set MLflow experiment
 current_user_name = spark.sql("SELECT current_user()").collect()[0][0]
 mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
@@ -78,6 +79,7 @@ mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
 
 # COMMAND ----------
 
+# DBTITLE 1,Initialize storage environment
 catalog = "daxs"
 db = "default"
 volume = "csv"
@@ -99,6 +101,7 @@ _ = spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{db}.{volume}")
 
 # COMMAND ----------
 
+# DBTITLE 1,Download dataset from Kaggle
 import subprocess
 import kagglehub
 
@@ -176,6 +179,7 @@ X_train, X_test = train_test_split(X, test_size=0.2, random_state=42)
 print(f"Training set shape: {X_train.shape}")
 print(f"Testing set shape: {X_test.shape}")
 
+# DBTITLE 1,Train and register ECOD model
 # Train the ECOD model
 with mlflow.start_run(run_name="ECOD_model") as run:
 
