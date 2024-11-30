@@ -53,7 +53,7 @@ _ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{db}")
 # MAGIC %md
 # MAGIC ## 2. Synthetic data creation
 # MAGIC
-# MAGIC To demonstrate how DAXS efficiently handles large-scale operations, we will generate a synthetic dataset and use DAXS to perform model fitting and prediction. The dataset simulates a fictitious scenario where thousands of wind turbines are monitored in the field. Each turbine is equipped with a hundred sensors, generating readings sampled at a one-minute frequency. Our objective is to train thousands of individual ECOD models and use them for inference. To achieve this, we leverage Pandas UDFs for distributed processing.
+# MAGIC To demonstrate how ECOD efficiently handles large-scale operations, we will generate a synthetic dataset and use ECOD to perform model fitting and prediction. The dataset simulates a fictitious scenario where thousands of wind turbines are monitored in the field. Each turbine is equipped with a hundred sensors, generating readings sampled at a one-minute frequency. Our objective is to train thousands of individual ECOD models and later use them for inference. To achieve this, we leverage [Pandas UDFs](https://docs.databricks.com/en/udf/pandas.html) for distributed processing.
 
 # COMMAND ----------
 
@@ -64,7 +64,7 @@ samples_per_turbine = 1440  # corresponds to 1 day of data
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC We will set the number of Spark shuffle partitions equal to the number of turbines. This ensures that the same number of Spark tasks as turbines is created when performing a `groupby` operation before applying `applyInPandas`. This approach allows us to utilize resources efficiently.
+# MAGIC We will set the number of [Spark shuffle partitions](https://spark.apache.org/docs/3.5.1/sql-performance-tuning.html) equal to the number of turbines. This ensures that the same number of Spark tasks as turbines is created when performing a `groupby` operation before applying `applyInPandas`. This approach allows us to utilize resources efficiently.
 
 # COMMAND ----------
 
@@ -92,7 +92,7 @@ display(spark_df.filter("turbine_id='Turbine_1'"))
 # MAGIC %md
 # MAGIC ## 2. Train many ECOD models using Pandas UDF
 # MAGIC
-# MAGIC Pandas UDF is a feature in PySpark that combines the distributed processing power of Spark with the data manipulation capabilities of pandas It uses Apache Arrow to efficiently transfer data between JVM and Python processes, allowing for vectorized operations that can significantly improve performance compared to traditional row-at-a-time UDFs. The first step in utilizing Pandas UDF is to define a function.
+# MAGIC Pandas UDF is a feature in PySpark that combines the distributed processing power of Spark with the data manipulation capabilities of pandas It uses [Apache Arrow](https://spark.apache.org/docs/latest/api/python/user_guide/sql/arrow_pandas.html) to efficiently transfer data between JVM and Python processes, allowing for vectorized operations that can significantly improve performance compared to traditional row-at-a-time UDFs. The first step in utilizing Pandas UDF is to define a function.
 
 # COMMAND ----------
 
@@ -147,7 +147,7 @@ schema = StructType([
 # MAGIC %md
 # MAGIC Finally, we execute the `applyInPandas` method using the previously defined function and schema. The output of this operation is then written to a Delta table. Note that we are adding the current timestamp to the dataframe. This is to distinguish the latest version of the models with their previous ones.
 # MAGIC
-# MAGIC Databricks recommends MLflow as the best practice for tracking models and experiment runs. However, at the scale of this exercise, logging and tracking thousands of runs in a short time can be challenging due to resource [limitations](https://docs.databricks.com/en/resources/limits.html) on the MLflow Tracking Server. To address this, we are using a Delta table to track runs and models instead. That said, we will still be logging aggregated information to mlflow. 
+# MAGIC Databricks recommends [MLflow](https://www.databricks.com/product/managed-mlflow) as the best practice for tracking models and experiment runs. However, at the scale of this exercise, logging and tracking thousands of runs in a short time can be challenging due to resource [limitations](https://docs.databricks.com/en/resources/limits.html) on the MLflow Tracking Server. To address this, we are using a Delta table to track runs and models instead. That said, we will still be logging aggregated information to mlflow. 
 
 # COMMAND ----------
 

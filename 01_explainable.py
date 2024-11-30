@@ -22,9 +22,9 @@
 # MAGIC %md
 # MAGIC ## 2. Environment Setup
 # MAGIC First, we'll set up our environment by:
-# MAGIC 1. Installing required packages from requirements.txt
-# MAGIC 2. Loading utility functions from our utilities module
-# MAGIC 3. Importing necessary libraries for data analysis and modeling
+# MAGIC 1. Installing required packages from requirements.txt.
+# MAGIC 2. Loading utility functions from our utilities module.
+# MAGIC 3. Importing necessary libraries for data analysis and modeling.
 
 # COMMAND ----------
 
@@ -62,11 +62,11 @@ mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Data Storage Setup
+# MAGIC ## 3. Data Storage Setup
 # MAGIC We'll set up our Databricks storage environment by:
-# MAGIC 1. Creating a catalog to organize our data assets
-# MAGIC 2. Setting up a schema (database) within the catalog
-# MAGIC 3. Creating a volume for CSV file storage
+# MAGIC 1. Creating a catalog to organize our data assets.
+# MAGIC 2. Setting up a schema (database) within the catalog.
+# MAGIC 3. Creating a volume for CSV file storage.
 # MAGIC
 # MAGIC This ensures our data is properly organized and accessible.
 
@@ -88,9 +88,8 @@ _ = spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{db}.{volume}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Data Download
-# MAGIC We'll download the Elevator Predictive Maintenance Dataset from Kaggle using kagglehub.
-# MAGIC The dataset will be stored in our Databricks volume for further processing.
+# MAGIC ### Data Download
+# MAGIC We'll download the Elevator Predictive Maintenance Dataset from Kaggle using [kagglehub](https://pypi.org/project/kagglehub/). The dataset will be stored in our Databricks volume for further processing.
 
 # COMMAND ----------
 
@@ -105,7 +104,9 @@ process.wait()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Data Loading and Exploratory Data Analysis (EDA)
+# MAGIC ## 4. Data Loading and Exploratory Data Analysis (EDA)
+# MAGIC
+# MAGIC Let's perform a simple analysis to understand the dataset.
 
 # COMMAND ----------
 
@@ -128,7 +129,9 @@ display(df.describe())
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Data Preprocessing and Feature Engineering
+# MAGIC ## 5. Data Preprocessing and Feature Engineering
+# MAGIC
+# MAGIC We will apply minimal preprocessing, specifically filling missing values with -99.
 
 # COMMAND ----------
 
@@ -141,12 +144,9 @@ display(X.head())
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Model Training and Evaluation
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Model Training Pipeline
+# MAGIC ## 6. Model Training and Evaluation
+# MAGIC
+# MAGIC ### Model Training Pipeline
 # MAGIC In this section, we will:
 # MAGIC 1. Split our data into training (80%) and test (20%) sets
 # MAGIC 2. Train an ECOD (Empirical Cumulative Distribution Functions) model
@@ -209,9 +209,8 @@ with mlflow.start_run(run_name="ECOD_model") as run:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Model Loading
-# MAGIC We'll load our champion model from MLflow registry for inference.
-# MAGIC The champion model represents our best performing version that's ready for production use.
+# MAGIC ### Model Loading
+# MAGIC In the following way you can load your champion model from MLflow registry for inference. The champion model represents our best performing version that's ready for production use.
 
 # COMMAND ----------
 
@@ -222,7 +221,7 @@ print(f"Loaded the champion model: {model_name}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Results and Evaluation
+# MAGIC ## 7. Results and Evaluation
 
 # COMMAND ----------
 
@@ -258,7 +257,7 @@ print(f"Testing AUC: {test_auc:.4f}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Model Explanations
+# MAGIC ### Model Explanations
 # MAGIC Here we generate explanations for our model's predictions using our custom explainer function.
 # MAGIC The explanations will help us understand:
 # MAGIC - Which features contributed most to each anomaly detection
@@ -268,12 +267,12 @@ print(f"Testing AUC: {test_auc:.4f}")
 # COMMAND ----------
 
 explanations = explainer(clf, X_test, top_n=3)
-display(explanations.sort_values('scores', ascending=False).limit(10))
+display(explanations.sort_values('scores', ascending=False).head(10))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Conclusion and Next Steps
+# MAGIC ## 8. Conclusion and Next Steps
 # MAGIC
 # MAGIC In this notebook, we've performed anomaly detection on the Elevator Predictive Maintenance Dataset using the ECOD algorithm. Here are the key findings and potential next steps:
 # MAGIC
@@ -294,7 +293,7 @@ display(explanations.sort_values('scores', ascending=False).limit(10))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC This concludes our analysis of the Elevator Predictive Maintenance Dataset using anomaly detection techniques. The insights gained from this analysis, including the visualization of the most and least anomalous cases, can be used to improve elevator maintenance strategies and reduce unplanned stops.
+# MAGIC This concludes our analysis of the Elevator Predictive Maintenance Dataset using anomaly detection techniques. The insights gained from this analysis, including the visualization of the most and least anomalous cases, can be used to improve elevator maintenance strategies and reduce unplanned stops. In the following notebooks, we will explore how ECOD can be applied at scale to train thousands of models.
 
 # COMMAND ----------
 
