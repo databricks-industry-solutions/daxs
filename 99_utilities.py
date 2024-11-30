@@ -1,4 +1,5 @@
 # Databricks notebook source
+# DBTITLE 1,Import libraries and define utility functions
 # Core Data Science Libraries
 import numpy as np
 import pandas as pd
@@ -10,8 +11,6 @@ import matplotlib.pyplot as plt
 # Machine Learning
 from sklearn.metrics import roc_auc_score
 from pyod.models.ecod import ECOD
-
-# COMMAND ----------
 
 def generate_turbine_data(
     df: pd.DataFrame, 
