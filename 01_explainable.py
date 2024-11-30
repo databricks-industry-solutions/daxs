@@ -116,6 +116,7 @@ process.wait()
 
 # COMMAND ----------
 
+# DBTITLE 1,Load and prepare dataset
 # Load the data
 df = spark.read.csv(f"/Volumes/{catalog}/{db}/{volume}/predictive-maintenance-dataset.csv", header=True, inferSchema=True).toPandas()
 df = df.drop(columns=["ID"])
@@ -124,11 +125,13 @@ display(df.head())
 
 # COMMAND ----------
 
+# DBTITLE 1,Display dataset information
 # Basic information about the dataset
 df.info()
 
 # COMMAND ----------
 
+# DBTITLE 1,Display statistical summary
 # Statistical summary of the dataset
 display(df.describe())
 
