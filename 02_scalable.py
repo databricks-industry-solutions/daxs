@@ -11,7 +11,7 @@
 
 # MAGIC %md
 # MAGIC ## 1. Cluster setup
-# MAGIC We recommend using a cluster with [Databricks Runtime 15.4 LTS for ML](https://docs.databricks.com/en/release-notes/runtime/15.4lts-ml.html) or above. The cluster can be either a single-node or multi-node CPU cluster. This notebook will leverage [Pandas UDF](https://docs.databricks.com/en/udf/pandas.html) and will utilize all the available resource (i.e., cores). Make sure to set the following Spark configurations before you start your cluster: [`spark.sql.execution.arrow.enabled true`](https://spark.apache.org/docs/3.0.1/sql-pyspark-pandas-with-arrow.html#enabling-for-conversion-tofrom-pandas) and [`spark.sql.adaptive.enabled false`](https://spark.apache.org/docs/latest/sql-performance-tuning.html#adaptive-query-execution). You can do this by specifying [Spark configuration](https://docs.databricks.com/en/compute/configure.html#spark-configuration) in the advanced options on the cluster creation page.
+# MAGIC We recommend using a multi-node CPU cluster with [Databricks Runtime 15.4 LTS for ML](https://docs.databricks.com/en/release-notes/runtime/15.4lts-ml.html) or above. This notebook will leverage [Pandas UDF](https://docs.databricks.com/en/udf/pandas.html) and will utilize all the available resource (i.e., cores). Make sure to set the following Spark configurations before you start your cluster: [`spark.sql.execution.arrow.enabled true`](https://spark.apache.org/docs/3.0.1/sql-pyspark-pandas-with-arrow.html#enabling-for-conversion-tofrom-pandas) and [`spark.sql.adaptive.enabled false`](https://spark.apache.org/docs/latest/sql-performance-tuning.html#adaptive-query-execution). You can do this by specifying [Spark configuration](https://docs.databricks.com/en/compute/configure.html#spark-configuration) in the advanced options on the cluster creation page.
 
 # COMMAND ----------
 
@@ -92,8 +92,6 @@ display(spark_df.filter("turbine_id='Turbine_1'"))
 # MAGIC %md
 # MAGIC ## 2. Train many ECOD models using Pandas UDF
 # MAGIC
-# MAGIC Databricks recommends MLflow as the best practice for tracking models and experiment runs. However, at the scale of this exercise, logging and tracking thousands of runs in a short time can be challenging due to resource [limitations](https://docs.databricks.com/en/resources/limits.html) on the MLflow Tracking Server. To address this, we are using a Delta table to track runs and models instead. 
-# MAGIC
 # MAGIC Pandas UDF is a feature in PySpark that combines the distributed processing power of Spark with the data manipulation capabilities of pandas It uses Apache Arrow to efficiently transfer data between JVM and Python processes, allowing for vectorized operations that can significantly improve performance compared to traditional row-at-a-time UDFs. The first step in utilizing Pandas UDF is to define a function.
 
 # COMMAND ----------
@@ -116,7 +114,7 @@ def train_ecod_model(turbine_pdf: pd.DataFrame) -> pd.DataFrame:
     n_used = turbine_pdf.shape[0]
 
     # Initialize and train the ECOD model
-    clf = ECOD(n_jobs=1)
+    clf = ECOD(contamination=0.1, n_jobs=1)
     clf.fit(X_train)
 
     # Serialize the trained model using base64 encoding
@@ -148,21 +146,30 @@ schema = StructType([
 
 # MAGIC %md
 # MAGIC Finally, we execute the `applyInPandas` method using the previously defined function and schema. The output of this operation is then written to a Delta table. Note that we are adding the current timestamp to the dataframe. This is to distinguish the latest version of the models with their previous ones.
+# MAGIC
+# MAGIC Databricks recommends MLflow as the best practice for tracking models and experiment runs. However, at the scale of this exercise, logging and tracking thousands of runs in a short time can be challenging due to resource [limitations](https://docs.databricks.com/en/resources/limits.html) on the MLflow Tracking Server. To address this, we are using a Delta table to track runs and models instead. That said, we will still be logging aggregated information to mlflow. 
 
 # COMMAND ----------
 
 from pyspark.sql.functions import current_timestamp
 
-# Group the data by turbine_id and train models using applyInPandas
-model_df = spark_df.groupBy('turbine_id').applyInPandas(train_ecod_model, schema=schema)
+with mlflow.start_run(run_name="ECOD_models_batch_training") as run:
 
-# Write the output of applyInPandas to a delta table
-(
-  model_df
-  .withColumn("created_at", current_timestamp())
-  .write.mode("overwrite")
-  .saveAsTable(f"{catalog}.{db}.models")
-)
+  # Group the data by turbine_id and train models using applyInPandas
+  model_df = spark_df.groupBy('turbine_id').applyInPandas(train_ecod_model, schema=schema)
+
+  # Write the output of applyInPandas to a delta table
+  (
+    model_df
+    .withColumn("created_at", current_timestamp())
+    .write.mode("overwrite")
+    .saveAsTable(f"{catalog}.{db}.models")
+  )
+
+  mlflow.log_param("contamination", 0.1)
+  mlflow.log_param("source", f"{catalog}.{db}.turbine_data_train_{num_turbines}")
+  mlflow.log_param("target", f"{catalog}.{db}.models")
+
 
 # COMMAND ----------
 

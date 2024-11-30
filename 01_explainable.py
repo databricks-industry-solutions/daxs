@@ -14,7 +14,13 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Environment Setup
+# MAGIC ## 1. Cluster setup
+# MAGIC We recommend using a cluster with [Databricks Runtime 15.4 LTS for ML](https://docs.databricks.com/en/release-notes/runtime/15.4lts-ml.html) or above. The cluster can be configured as either a single-node or multi-node CPU cluster. This notebook can run on a single-node cluster since we are applying only a single model, but the subsequent notebooks will require a multi-node cluster.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 2. Environment Setup
 # MAGIC First, we'll set up our environment by:
 # MAGIC 1. Installing required packages from requirements.txt
 # MAGIC 2. Loading utility functions from our utilities module
@@ -262,7 +268,7 @@ print(f"Testing AUC: {test_auc:.4f}")
 # COMMAND ----------
 
 explanations = explainer(clf, X_test, top_n=3)
-display(explanations.sort_values('scores', ascending=False))
+display(explanations.sort_values('scores', ascending=False).limit(10))
 
 # COMMAND ----------
 
