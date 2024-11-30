@@ -177,17 +177,15 @@ with mlflow.start_run(run_name="ECOD_model") as run:
     clf.fit(X_train)
     clf.feature_columns_ = X_train.columns.tolist()
 
-    # Predict on both training and test sets
+    # Get predictions for training data
     y_train_pred = clf.labels_
-    y_test_pred = clf.predict(X_test)
-    y_test_scores = clf.decision_function(X_test)
 
     # Log parameters
     mlflow.log_param("contamination", 0.1)
     mlflow.log_param("n_jobs", -1)
 
-    # Log model
-    signature = infer_signature(X_test, y_test_pred) 
+    # Log model using training data for signature
+    signature = infer_signature(X_train, y_train_pred)
     mlflow.sklearn.log_model(clf, "ecod_model", signature=signature)
 
     # Register the model
