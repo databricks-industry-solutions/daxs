@@ -48,14 +48,8 @@ import mlflow
 import mlflow.sklearn
 from mlflow.models.signature import infer_signature
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from pyod.models.ecod import ECOD
-from sklearn.metrics import precision_score, recall_score, f1_score
-from pyspark.sql.functions import current_user
 
 
 # Get the current user name and store it in a variable
@@ -220,20 +214,6 @@ print(f"Loaded the champion model: {model_name}")
 # MAGIC %md
 # MAGIC ## 7. Results and Evaluation
 
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Results Summary
-# MAGIC 
-# MAGIC The ECOD model identified anomalies in:
-# MAGIC - Training set: 8,960 records (10.00%)
-# MAGIC - Test set: 2,212 records (9.87%)
-# MAGIC These results align well with our configured contamination parameter of 0.1 (10%).
-
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC ### Model Explanations
 # MAGIC Here we generate explanations for our model's predictions using our custom explainer function.
 # MAGIC The explanations will help us understand:
@@ -253,6 +233,18 @@ results_df = pd.DataFrame({
 
 # Display top anomalies
 display(results_df.sort_values('scores', ascending=False).head(10))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Results Summary
+# MAGIC 
+# MAGIC The ECOD model identified anomalies in:
+# MAGIC - Test set: 2,212 records (9.87%)
+
+# MAGIC These results align well with our configured contamination parameter of 0.1 (10%).
+
+# COMMAND ----------
 
 # Evaluate results
 evaluate_results(results_df)
