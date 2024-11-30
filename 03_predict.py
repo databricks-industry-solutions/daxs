@@ -314,7 +314,7 @@ display(exploded_results.filter("turbine_id='Turbine_100'").orderBy("turbine_id"
 # MAGIC
 # MAGIC In this notebook, we demonstrated how ECOD can be used to make inference using thousands of models by leveraging Pandas UDFs with Spark.
 # MAGIC
-# MAGIC To execute this notebook, we used a multi-node interactive cluster consisting of 8 workers, each equipped with 4 cores and 32 GB of memory. The setup corresponds to [r8g.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) (memory optimized) instances on AWS (27 DBU/h) or [Standard_E4d_v4](https://www.databricks.com/product/pricing/product-pricing/instance-types) (memory optimized) instances on Azure (18 DBU/h). Performing inference on the 10,000 trained models, each executed 60 times, required about 3 minutes. 
+# MAGIC To execute this notebook, we used a multi-node interactive cluster consisting of 8 workers, each equipped with 4 cores and 32 GB of memory. The setup corresponds to [r8g.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) (memory optimized) instances on AWS (27 DBU/h) or [Standard_E4d_v4](https://www.databricks.com/product/pricing/product-pricing/instance-types) (memory optimized) instances on Azure (18 DBU/h). Performing inference on the 10,000 trained models, each executed 60 times, required about 2 minutes. 
 # MAGIC
 # MAGIC An efficient implementation of ECOD combined with Pandas UDF allows these [embarrasigly parallelizable](https://en.wikipedia.org/wiki/Embarrassingly_parallel) operations to scale proportionally with the size of the cluster: i.e., number of cores. 
 
