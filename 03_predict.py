@@ -55,7 +55,7 @@ db = "default"
 # MAGIC %md
 # MAGIC ## 2. Synthetic data creation
 # MAGIC
-# MAGIC To demonstrate how DAXS can efficiently handle large-scale inference, we will create a synthetic dataset simulating a hypothetical scenario. In this scenario, thousands of wind turbines are monitored in the field, each equipped with a hundred sensors generating data at one-minute intervals. We've collected an hour's worth of sensor readings and are now prepared to apply batch inference to identify any signs of turbine failures. As in the training notebook, we will leverage Pandas UDFs for distributed processing.
+# MAGIC To demonstrate how ECOD can efficiently handle large-scale inference, we will create a synthetic dataset simulating a hypothetical scenario. In this scenario, thousands of wind turbines are monitored in the field, each equipped with a hundred sensors generating data at one-minute intervals. We've collected an hour's worth of sensor readings and are now prepared to apply batch inference to identify any signs of turbine failures. As in the training notebook, we will leverage Pandas UDFs for distributed processing.
 
 # COMMAND ----------
 
@@ -79,7 +79,7 @@ sqlContext.setConf("spark.sql.shuffle.partitions", num_turbines)
 
 # COMMAND ----------
 
-inference_df = create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_turbine, start_date='2025-02-01', return_df=True)
+synthetic_data = create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_turbine, start_date='2025-02-01', return_df=True)
 
 # COMMAND ----------
 
@@ -88,19 +88,25 @@ inference_df = create_turbine_dataset(catalog, db, num_turbines, num_sensors, sa
 
 # COMMAND ----------
 
-from pyspark.sql.functions import col, rand, when
+from pyspark.sql.functions import col, rand, when, current_timestamp
 
 # Iterate over sensor columns from "sensor_50" to "sensor_54"
 for i in range(50, 55):
     sensor_col = f"sensor_{i}"  # Get the sensor column names
-    inference_df = inference_df.withColumn(
+    synthetic_data = synthetic_data.withColumn(
         sensor_col,
-        # If turbine_id is "Turbine_100", add randomness and offset (2.5) to the sensor value
-        when(col("turbine_id") == "Turbine_100", col(sensor_col) + rand() + 10)
+        # If turbine_id is "Turbine_100", add randomness and offset (5) to the sensor value
+        when(col("turbine_id") == "Turbine_100", col(sensor_col) + rand() + 5)
         .otherwise(col(sensor_col))  # Otherwise, keep the original value
     )
 
-display(inference_df.filter("turbine_id='Turbine_100'"))
+# Write the output of applyInPandas to a delta table
+(
+    synthetic_data
+    .withColumn("created_at", current_timestamp())
+    .write.mode("overwrite")
+    .saveAsTable(f"{catalog}.{db}.turbine_data_inference_{num_turbines}")
+)
 
 
 # COMMAND ----------
@@ -108,7 +114,7 @@ display(inference_df.filter("turbine_id='Turbine_100'"))
 # MAGIC %md
 # MAGIC ## 2. Perform inference using many ECOD models using Pandas UDF
 # MAGIC
-# MAGIC In this section, we will load the models stored in the `models` table and use them for inference. Again, we will use Pandas UDF to efficiently distribute the inference across the cluster.
+# MAGIC In this section, we will load the models stored in the `models` table and use them for inference. Again, we will use [Pandas UDF](https://docs.databricks.com/en/udf/pandas.html) to efficiently distribute the inference across the cluster.
 
 # COMMAND ----------
 
@@ -203,6 +209,8 @@ latest_model_df = model_df_with_row_num.filter(col('row_num') == 1).drop('row_nu
 
 from pyspark.sql.functions import collect_list, current_timestamp
 
+inference_df = spark.read.table(f"{catalog}.{db}.turbine_data_inference_{num_turbines}").drop('created_at')
+
 # Group by turbine_id and collect values into lists for each column
 inference_df_collected = inference_df.groupBy('turbine_id').agg(
     *[collect_list(col_name).alias(col_name) for col_name in inference_df.columns if col_name != 'turbine_id']
@@ -248,7 +256,7 @@ with mlflow.start_run(run_name="ECOD_models_batch_inference") as run:
 # MAGIC %md
 # MAGIC ## 3. Post inference analysis
 # MAGIC
-# MAGIC Let's conduct a post-inference analysis to determine if DAXS successfully detected the anomalies we introduced into our dataset. To do this, we will first query the `results` table.
+# MAGIC Let's conduct a post-inference analysis to determine if ECOD successfully detected the anomalies we introduced into our dataset. To do this, we will first query the `results` table.
 
 # COMMAND ----------
 
@@ -306,7 +314,7 @@ display(exploded_results.filter("turbine_id='Turbine_100'").orderBy("turbine_id"
 # MAGIC
 # MAGIC In this notebook, we demonstrated how ECOD can be used to make inference using thousands of models by leveraging Pandas UDFs with Spark.
 # MAGIC
-# MAGIC To execute this notebook, we used a multi-node interactive cluster consisting of 8 workers, each equipped with 4 cores and 16 GB of memory. The setup corresponds to [m5d.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on AWS (12.42 DBU/h) or [Standard_D4ds_v5](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on Azure (18 DBU/h). Performing inference on the 10,000 trained models, each executed 60 times, required about 8.5 minutes. 
+# MAGIC To execute this notebook, we used a multi-node interactive cluster consisting of 8 workers, each equipped with 4 cores and 16 GB of memory. The setup corresponds to [m5d.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on AWS (12.42 DBU/h) or [Standard_D4ds_v5](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on Azure (18 DBU/h). Performing inference on the 10,000 trained models, each executed 60 times, required about 7 minutes. 
 # MAGIC
 # MAGIC An efficient implementation of ECOD combined with Pandas UDF allows these [embarrasigly parallelizable](https://en.wikipedia.org/wiki/Embarrassingly_parallel) operations to scale proportionally with the size of the cluster: i.e., number of cores. 
 
