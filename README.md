@@ -21,13 +21,13 @@ In today's rapidly evolving industrial landscape, detecting anomalies in manufac
 
 - **Introduction (`00_introduction.py`)**: Overview of DAXS architecture and core concepts.
 
-- **Explainable Detection (`01_explainable.py`)**: Implementation of ECOD algorithm for transparent anomaly detection on the Elevator Predictive Maintenance Dataset.
+- **Single Model Training (`01_explainable.py`)**: Demonstrates explainable anomaly detection using ECOD on a single model with the Elevator Predictive Maintenance Dataset. Shows how to train, evaluate, and generate explanations for anomaly predictions.
 
-- **Scalable Processing (`02_scalable.py`)**: Framework for handling large-scale datasets and multiple model training.
+- **Scalable Training (`02_scalable.py`)**: Shows how to scale the ECOD training process to handle 10,000 models efficiently using Pandas UDFs and Spark. Demonstrates training individual models for thousands of turbines with hundreds of sensors.
 
-- **Batch Inference (`03_predict.py`)**: Production-ready inference pipeline for efficient batch anomaly detection.
+- **Scalable Inference (`03_predict.py`)**: Production-ready inference pipeline that shows how to perform batch predictions with 10,000 models while maintaining explainability. Uses distributed processing to generate predictions and explanations at scale.
 
-- **Utility Functions (`99_utilities.py`)**: Helper functions for model evaluation, metrics calculation, and anomaly explanation generation.
+- **Utility Functions (`99_utilities.py`)**: Helper functions for model evaluation, metrics calculation, data generation, and anomaly explanation generation.
 
 ## Getting Started
 
