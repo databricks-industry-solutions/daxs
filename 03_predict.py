@@ -11,7 +11,9 @@
 
 # MAGIC %md
 # MAGIC ## 1. Cluster setup
-# MAGIC We recommend using a cluster with [Databricks Runtime 15.4 LTS for ML](https://docs.databricks.com/en/release-notes/runtime/15.4lts-ml.html) or above. The cluster can be either a single-node or multi-node CPU cluster. This notebook will leverage [Pandas UDF](https://docs.databricks.com/en/udf/pandas.html) and will utilize all the available resource (i.e., cores). Make sure to set the following Spark configurations before you start your cluster: [`spark.sql.execution.arrow.enabled true`](https://spark.apache.org/docs/3.0.1/sql-pyspark-pandas-with-arrow.html#enabling-for-conversion-tofrom-pandas) and [`spark.sql.adaptive.enabled false`](https://spark.apache.org/docs/latest/sql-performance-tuning.html#adaptive-query-execution). You can do this by specifying [Spark configuration](https://docs.databricks.com/en/compute/configure.html#spark-configuration) in the advanced options on the cluster creation page.
+# MAGIC We recommend using a multi-node CPU cluster with [Databricks Runtime 15.4 LTS for ML](https://docs.databricks.com/en/release-notes/runtime/15.4lts-ml.html) or above. This notebook will leverage [Pandas UDF](https://docs.databricks.com/en/udf/pandas.html) and will utilize all the available resource (i.e., cores). Make sure to set the following Spark configurations before you start your cluster: [`spark.sql.execution.arrow.enabled true`](https://spark.apache.org/docs/3.0.1/sql-pyspark-pandas-with-arrow.html#enabling-for-conversion-tofrom-pandas) and [`spark.sql.adaptive.enabled false`](https://spark.apache.org/docs/latest/sql-performance-tuning.html#adaptive-query-execution). You can do this by specifying [Spark configuration](https://docs.databricks.com/en/compute/configure.html#spark-configuration) in the advanced options on the cluster creation page.
+# MAGIC
+# MAGIC *Before starting, ensure this notebook is the only one attached to the cluster, and detach any previously connected notebooks. This helps prevent the cluster from running out of memory during large-scale inference.*
 
 # COMMAND ----------
 
@@ -94,7 +96,7 @@ for i in range(50, 55):
     inference_df = inference_df.withColumn(
         sensor_col,
         # If turbine_id is "Turbine_100", add randomness and offset (2.5) to the sensor value
-        when(col("turbine_id") == "Turbine_100", col(sensor_col) + rand() + 2.5)
+        when(col("turbine_id") == "Turbine_100", col(sensor_col) + rand() + 10)
         .otherwise(col(sensor_col))  # Otherwise, keep the original value
     )
 
@@ -134,39 +136,13 @@ def predict_with_ecod(turbine_pdf: pd.DataFrame, explanation_num=3) -> pd.DataFr
 
     # Cast all columns as float
     X_test = X_test.astype('float64')
-    
-    # Perform inference using the trained model
-    y_pred = model.predict(X_test)              # Predict anomalies
-    scores = model.decision_function(X_test)    # Compute anomaly scores
 
+    # Perform inference using the trained model. predict_explain method is defined in 99_utilities
+    y_pred, scores, explanations = predict_explain(model, X_test, feature_columns, explanation_num)
+    
     # Append the results to the original dataframe
     turbine_pdf['anomaly'] = [y_pred]
     turbine_pdf['anomaly_score'] = [scores]
-    
-    # Get the anomaly scores of each feature, rank them and calculate explanations
-    raw_scores = model.O[-X_test.shape[0]:]
-    ranked = np.argsort(-raw_scores, axis=1)
-    
-    # Limit the number of explanations to the number of features
-    max_n = min(raw_scores.shape[1], explanation_num)
-
-    # Add explanations
-    explanations = [] 
-    num_observations = len(y_pred)
-    for idx in range(num_observations):
-        explaners = [] 
-        for i in range(max_n):
-            feature_idx = ranked[idx, i]
-            feature_name = feature_columns[feature_idx]
-            feature_value = X_test.iloc[idx, feature_idx]
-            strength = (raw_scores[idx, feature_idx] / scores[idx]) * 100
-            explaner = {
-                f'{i+1}_feature': feature_name,
-                f'{i+1}_value': str(round(float(feature_value), 3)),
-                f'{i+1}_contribution': f"{round(strength)}%"
-            }
-            explaners.append(explaner)
-        explanations.append(explaners)    
     turbine_pdf['explanations'] = [explanations]
     
     # Remove unnecessary columns before returning the result
@@ -199,7 +175,7 @@ result_schema = StructType(
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC We load the models from the Delta table, filtering the `created_at` column to retrieve only the latest version.
+# MAGIC We load the models from the Delta table, filtering the `created_at` column to retrieve the latest version.
 
 # COMMAND ----------
 
@@ -250,16 +226,22 @@ predict_with_ecod_fn = functools.partial(
         explanation_num=explanation_num,
         )
 
-# Apply the inference function using applyInPandas
-result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod_fn, schema=result_schema)
+with mlflow.start_run(run_name="ECOD_models_batch_inference") as run:
 
-# Write the output of applyInPandas to a delta table
-(
-  result_df
-  .withColumn("scored_at", current_timestamp())
-  .write.mode("overwrite")
-  .saveAsTable(f"{catalog}.{db}.results")
-)
+  # Apply the inference function using applyInPandas
+  result_df = joined_df.groupBy('turbine_id').applyInPandas(predict_with_ecod_fn, schema=result_schema)
+
+  # Write the output of applyInPandas to a delta table
+  (
+    result_df
+    .withColumn("scored_at", current_timestamp())
+    .write.mode("overwrite")
+    .saveAsTable(f"{catalog}.{db}.results")
+  )
+
+  mlflow.log_param("source", f"{catalog}.{db}.models")
+  mlflow.log_param("target", f"{catalog}.{db}.results")
+
 
 # COMMAND ----------
 
@@ -324,7 +306,7 @@ display(exploded_results.filter("turbine_id='Turbine_100'").orderBy("turbine_id"
 # MAGIC
 # MAGIC In this notebook, we demonstrated how ECOD can be used to make inference using thousands of models by leveraging Pandas UDFs with Spark.
 # MAGIC
-# MAGIC To execute this notebook, we used a multi-node interactive cluster consisting of 8 workers, each equipped with 4 cores and 16 GB of memory. The setup corresponds to [m5d.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on AWS (12.42 DBU/h) or [Standard_D4ds_v5](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on Azure (18 DBU/h). Performing inference on the 10,000 trained models, each executed 60 times, required about 8 minutes. 
+# MAGIC To execute this notebook, we used a multi-node interactive cluster consisting of 8 workers, each equipped with 4 cores and 16 GB of memory. The setup corresponds to [m5d.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on AWS (12.42 DBU/h) or [Standard_D4ds_v5](https://www.databricks.com/product/pricing/product-pricing/instance-types) instances on Azure (18 DBU/h). Performing inference on the 10,000 trained models, each executed 60 times, required about 8.5 minutes. 
 # MAGIC
 # MAGIC An efficient implementation of ECOD combined with Pandas UDF allows these [embarrasigly parallelizable](https://en.wikipedia.org/wiki/Embarrassingly_parallel) operations to scale proportionally with the size of the cluster: i.e., number of cores. 
 

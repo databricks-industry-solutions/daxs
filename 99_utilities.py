@@ -6,6 +6,60 @@ from sklearn.metrics import roc_auc_score
 import matplotlib.pyplot as plt
 from pyod.models.ecod import ECOD
 
+# COMMAND ----------
+
+def generate_turbine_data(
+    df: pd.DataFrame, 
+    num_sensors,
+    samples_per_turbine,
+    start_date,
+    ) -> pd.DataFrame:
+    turbine_id = [df["turbine_id"].iloc[0]] * samples_per_turbine
+    sensor_id = [f'sensor_{i}' for i in range(1, num_sensors + 1)]
+    timestamps = [pd.to_datetime(start_date) + pd.Timedelta(minutes=i) for i in range(1, samples_per_turbine + 1)]
+    res_df = pd.DataFrame({'turbine_id': turbine_id, 'timestamp': timestamps})
+    for i in range(1, num_sensors + 1):
+        res_df[f"sensor_{i}"] = list(np.random.normal(loc=0, scale=1, size=samples_per_turbine))
+    
+    return res_df
+  
+
+def create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_turbine, start_date='2025-01-01', return_df=False):
+    """
+    Creates a synthetic dataset with specified number of turbines,
+    each having a fixed number of sensors between num_sensors,
+    and adds a timestamp column.
+    """
+    from pyspark.sql.functions import col, lit
+    from pyspark.sql.types import StructType, StructField, StringType, FloatType, IntegerType, TimestampType, ArrayType
+    
+    columns = [
+        StructField('turbine_id', StringType(), True),
+        StructField('timestamp', TimestampType(), True),
+    ]
+    for i in range(1, num_sensors + 1):
+        columns.append(StructField(f'sensor_{i}', FloatType()))
+    
+    turbine_ids = [f'Turbine_{i}' for i in range(1, num_turbines + 1)]
+
+    df = spark.createDataFrame([(tid,) for tid in turbine_ids], ['turbine_id'])
+
+    generate_turbine_data_fn = functools.partial(
+        generate_turbine_data, 
+        num_sensors=num_sensors,
+        samples_per_turbine=samples_per_turbine,
+        start_date=start_date,
+        )
+
+    df = df.groupBy('turbine_id').applyInPandas(generate_turbine_data_fn, schema=StructType(columns))
+
+    if return_df:
+        return df
+    else:
+        df.write.mode('overwrite').saveAsTable(f'{catalog}.{db}.turbine_data_train_{num_turbines}')
+
+
+# COMMAND ----------
 
 def evaluate_results(X_data, y_pred, clf, set_name):
     df_results = X_data.copy()
@@ -146,6 +200,57 @@ def explain_test_outlier(clf, X_test, index, columns=None, cutoffs=None,
     plt.show()
 
 
+def predict_explain(clf, X, feature_cols, top_n):
+    """
+    Generates predictions, scores, and feature-based explanations for a given classifier and dataset.
+
+    Args:
+        clf: A trained classifier object with `predict` and `decision_function` methods.
+        X: A pandas DataFrame of input features for prediction.
+        feature_cols: A list of feature names corresponding to the columns of X.
+        top_n: The number of top features contributing to the prediction to include in explanations.
+
+    Returns:
+        tuple: 
+            - predict (ndarray): Predicted labels for the input data.
+            - scores (ndarray): Decision scores from the classifier.
+            - explanations (list): A list of dictionaries containing feature names, values, and contributions 
+              for the top contributing features per observation.
+    """
+
+    # Calculate predictions and scores
+    predict = clf.predict(X)
+    scores = clf.decision_function(X)
+    
+    # Get raw scores
+    if hasattr(clf, 'O'):
+        raw_scores = clf.O[-X.shape[0]:]
+    else:
+        raw_scores = clf.decision_function(X)
+
+    # Rank features for anomalies
+    ranked = np.argsort(-raw_scores, axis=1)
+    max_n = min(raw_scores.shape[1], top_n)    
+    explanations = []
+    num_observations = len(predict)
+    for idx in range(num_observations):
+        explaners = []
+        for i in range(max_n):
+            feature_idx = ranked[idx, i]
+            feature_name = feature_cols[feature_idx]
+            feature_value = X.iloc[idx, feature_idx]
+            strength = (raw_scores[idx, feature_idx] / scores[idx]) * 100
+            explaner = {
+                f'{i+1}_feature': feature_name,
+                f'{i+1}_value': str(round(float(feature_value), 3)),
+                f'{i+1}_contribution': f"{round(strength)}%",
+            }
+            explaners.append(explaner)
+        explanations.append(explaners)
+
+    return predict, scores, explanations
+
+
 def explainer(clf, df, top_n=3):
     """
     Generate explanations for anomalies in the dataset.
@@ -159,98 +264,16 @@ def explainer(clf, df, top_n=3):
     
     # Select only the feature columns from df
     X = df[feature_cols]
+
+    predict, scores, explanations = predict_explain(clf, X, feature_cols, top_n)
     
-    # Calculate predictions and scores
-    predict = clf.predict(X)
-    scores = clf.decision_function(X)
-    
-    # Get raw scores
-    if hasattr(clf, 'O'):
-        raw_scores = clf.O[-X.shape[0]:]
-    else:
-        raw_scores = clf.decision_function(X)
-    
+    explanations = [' '.join(map(str, exp)) for exp in explanations]
+
     # Create result DataFrame
     result_df = pd.DataFrame({
         'predict': predict,
         'scores': scores,
-        'explanations': ''  # Initialize empty explanations
+        'explanations': np.array(explanations),  
     })
-    
-    # Generate explanations only for anomalies
-    anomaly_indices = np.where(predict == 1)[0]
-    if len(anomaly_indices) > 0:
-        # Rank features for anomalies
-        ranked = np.argsort(-raw_scores[anomaly_indices], axis=1)
-        max_n = min(raw_scores.shape[1], top_n)
-        
-        for idx in anomaly_indices:
-            explanations = []
-            for i in range(max_n):
-                feature_idx = ranked[np.where(anomaly_indices == idx)[0][0], i]
-                feature_name = feature_cols[feature_idx]
-                feature_value = X.iloc[idx, feature_idx]
-                strength = (raw_scores[idx, feature_idx] / scores[idx]) * 100
-                
-                explanation = {
-                    'feature': feature_name,
-                    'value': round(float(feature_value), 3),
-                    'contribution': f"{round(strength)}%"
-                }
-                explanations.append(explanation)
-            
-            result_df.loc[idx, 'explanations'] = json.dumps(explanations)
-    
+
     return result_df.reset_index(drop=True)
-
-
-def generate_turbine_data(
-    df: pd.DataFrame, 
-    num_sensors,
-    samples_per_turbine,
-    start_date,
-    ) -> pd.DataFrame:
-    turbine_id = [df["turbine_id"].iloc[0]] * samples_per_turbine
-    sensor_id = [f'sensor_{i}' for i in range(1, num_sensors + 1)]
-    timestamps = [pd.to_datetime(start_date) + pd.Timedelta(minutes=i) for i in range(1, samples_per_turbine + 1)]
-    res_df = pd.DataFrame({'turbine_id': turbine_id, 'timestamp': timestamps})
-    for i in range(1, num_sensors + 1):
-        res_df[f"sensor_{i}"] = list(np.random.normal(loc=0, scale=1, size=samples_per_turbine))
-    
-    return res_df
-  
-
-def create_turbine_dataset(catalog, db, num_turbines, num_sensors, samples_per_turbine, start_date='2025-01-01', return_df=False):
-    """
-    Creates a synthetic dataset with specified number of turbines,
-    each having a fixed number of sensors between num_sensors,
-    and adds a timestamp column.
-    """
-    from pyspark.sql.functions import col, lit
-    from pyspark.sql.types import StructType, StructField, StringType, FloatType, IntegerType, TimestampType, ArrayType
-    
-    columns = [
-        StructField('turbine_id', StringType(), True),
-        StructField('timestamp', TimestampType(), True),
-    ]
-    for i in range(1, num_sensors + 1):
-        columns.append(StructField(f'sensor_{i}', FloatType()))
-    
-    turbine_ids = [f'Turbine_{i}' for i in range(1, num_turbines + 1)]
-
-    df = spark.createDataFrame([(tid,) for tid in turbine_ids], ['turbine_id'])
-
-    generate_turbine_data_fn = functools.partial(
-        generate_turbine_data, 
-        num_sensors=num_sensors,
-        samples_per_turbine=samples_per_turbine,
-        start_date=start_date,
-        )
-
-    df = df.groupBy('turbine_id').applyInPandas(generate_turbine_data_fn, schema=StructType(columns))
-
-    if return_df:
-        return df
-    else:
-        df.write.mode('overwrite').saveAsTable(f'{catalog}.{db}.turbine_data_train_{num_turbines}')
-
