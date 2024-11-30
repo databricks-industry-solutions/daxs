@@ -44,18 +44,21 @@
 
 # COMMAND ----------
 
+# Core Data Science Libraries
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+
+# MLflow Components
 import mlflow
 import mlflow.sklearn
 from mlflow.models.signature import infer_signature
-import pandas as pd
-from sklearn.model_selection import train_test_split
+
+# Anomaly Detection
 from pyod.models.ecod import ECOD
 
-
-# Get the current user name and store it in a variable
+# Get current user and set MLflow experiment
 current_user_name = spark.sql("SELECT current_user()").collect()[0][0]
-
-# Set the experiment name
 mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
 
 # COMMAND ----------

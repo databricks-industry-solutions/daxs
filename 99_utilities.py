@@ -1,9 +1,14 @@
 # Databricks notebook source
+# Core Data Science Libraries
 import numpy as np
 import pandas as pd
 import functools
-from sklearn.metrics import roc_auc_score
+
+# Visualization
 import matplotlib.pyplot as plt
+
+# Machine Learning
+from sklearn.metrics import roc_auc_score
 from pyod.models.ecod import ECOD
 
 # COMMAND ----------
