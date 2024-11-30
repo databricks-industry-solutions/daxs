@@ -83,23 +83,6 @@ def evaluate_results(X_data, y_pred, clf, set_name):
     return df_results
 
 
-def synthetic_auc(model, X, n_synthetic=1000):
-    # Generate synthetic normal data
-    normal_synthetic = np.random.normal(loc=X.mean(axis=0), scale=X.std(axis=0), size=(n_synthetic, X.shape[1]))
-    
-    # Generate synthetic anomalies
-    anomaly_synthetic = np.random.uniform(low=X.min(axis=0), high=X.max(axis=0), size=(n_synthetic, X.shape[1]))
-    
-    # Combine synthetic data
-    X_synthetic = np.vstack([normal_synthetic, anomaly_synthetic])
-    y_synthetic = np.hstack([np.zeros(n_synthetic), np.ones(n_synthetic)])
-    
-    # Get anomaly scores
-    scores = -model.decision_function(X_synthetic)
-    
-    # Calculate AUC
-    auc = roc_auc_score(y_synthetic, scores)
-    return auc
 
 
 def explain_test_outlier(clf, X_test, index, columns=None, cutoffs=None,
