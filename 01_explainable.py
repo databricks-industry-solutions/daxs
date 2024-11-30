@@ -245,8 +245,14 @@ print(f"Loaded the champion model: {model_name}")
 
 # COMMAND ----------
 
-explanations = explainer(clf, X_test, top_n=3)
-display(explanations.sort_values('scores', ascending=False).head(10))
+predict, scores, explanations = predict_explain(clf, X_test, X_test.columns, top_n=3)
+# Create a DataFrame with the results
+results_df = pd.DataFrame({
+    'predict': predict,
+    'scores': scores,
+    'explanations': explanations
+})
+display(results_df.sort_values('scores', ascending=False).head(10))
 
 # COMMAND ----------
 
