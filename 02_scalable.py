@@ -26,6 +26,7 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,Run utility functions
 # MAGIC %run ./99_utilities
 
 # COMMAND ----------
