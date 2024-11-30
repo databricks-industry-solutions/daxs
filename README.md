@@ -7,7 +7,7 @@
 
 DAXS (Detection of Anomalies, eXplainable and Scalable) demonstrates how to train and deploy 10,000 anomaly detection models on over one billion sensor readings for less than $1, while providing detailed explanations for each prediction. This solution showcases extreme cost optimization for large-scale industrial IoT anomaly detection.
 
-![DAXS Architecture](DAXS.png)
+![DAXS Architecture](daxs_architecture.png)
 
 ## Overview
 

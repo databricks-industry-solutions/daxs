@@ -9,7 +9,7 @@
 # MAGIC
 # MAGIC # Training 10,000 Anomaly Detection Models for Under $1 on One Billion Records
 # MAGIC
-# MAGIC ![DAXS Architecture](DAXS.png)
+# MAGIC ![DAXS Architecture](daxs_architecture.png)
 
 # COMMAND ----------
 
