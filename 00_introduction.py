@@ -9,7 +9,7 @@
 # MAGIC
 # MAGIC # Training 10,000 Anomaly Detection Models for Under $1 on One Billion Records
 # MAGIC
-# MAGIC A Cost-Optimized Solution for Large-Scale Industrial IoT Anomaly Detection
+# MAGIC ![DAXS Architecture](DAXS.png)
 
 # COMMAND ----------
 
