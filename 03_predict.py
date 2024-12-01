@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Anomaly Detection per Turbine using ECOD and Pandas UDFs
+# MAGIC # Use Anomaly Detection Models for 10,000 Turbines using ECOD and Pandas UDFs
 
 # COMMAND ----------
 
@@ -38,6 +38,13 @@ from pyspark.sql import functions as F
 import mlflow
 from base64 import urlsafe_b64encode, urlsafe_b64decode
 import pickle
+
+
+# Get the current user name and store it in a variable
+current_user_name = spark.sql("SELECT current_user()").collect()[0][0]
+
+# Set the experiment name
+mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
 
 # COMMAND ----------
 

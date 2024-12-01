@@ -33,26 +33,25 @@ In today's rapidly evolving industrial landscape, detecting anomalies in manufac
 
 To use DAXS, you'll need:
 - A Databricks Runtime ML (DBR-ML) cluster
-- Python installed along with the following libraries:
+- Python installed along with the following library:
 - pyod
-- scikit-learn
-- pandas
-- numpy
-- matplotlib
-- seaborn
-- mlflow
 
-You can install these dependencies using pip:
+You can install this dependency using pip:
 
 ```
-pip install pyod scikit-learn pandas numpy matplotlib seaborn mlflow
+pip install pyod
 ```
 
 ## Usage
 
-1. Start by running the `01_explainable.py` script to train and evaluate the ECOD model on your dataset.
-2. Use the `03_predict_anomalies.py` script to make predictions on new data using the trained model.
-3. Extend the functionality in `02_many_models_ad.py` to implement scalable anomaly detection for your specific use case.
+1. Start by running the `01_explainable` notebook to train and evaluate the ECOD model on a smaller dataset. This notebook provides a detailed walkthrough of the internal workings of DAXS.
+2. Use the `02_scalable` notebook to learn how to scale the training of ECOD models to thousands of assets.
+3. Finally, the `03_predict` notebook shows how to apply the models trained in the previous notebook to a new dataset.
+
+## Authors
+
+<homayoon.moradi@databricks.com>, <ryuta.yoshimatsu@databricks.com>
+
 
 ## Contributing
 
@@ -60,9 +59,8 @@ DAXS is an open-source project, and we welcome contributions from data scientist
 
 ## Future Development
 
-- Complete the implementation of scalable anomaly detection in `02_many_models_ad.py`.
-- Enhance the `03_predict_anomalies.py` script to incorporate scalability features for real-time, large-scale anomaly detection.
 - Develop additional visualization tools for better interpretation of anomalies.
 - Implement more advanced explainability techniques to provide deeper insights into detected anomalies.
+- Include an option to deploy thousands of trained models behind a single or multiple Model Serving endpoint(s) for real time anomaly detection use cases.
 
 DAXS has the potential to revolutionize predictive maintenance in the manufacturing industry by providing an accessible, scalable, and explainable solution for anomaly detection. Join us in developing this powerful tool to help businesses improve their operations and reduce unplanned downtime.
