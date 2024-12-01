@@ -8,8 +8,6 @@
 # MAGIC <img src='https://github.com/databricks-industry-solutions/.github/raw/main/profile/solacc_logo_wide.png' width="1000" ></img>
 # MAGIC
 # MAGIC # Training 10,000 Anomaly Detection Models for Under $1 on One Billion Records
-# MAGIC
-# MAGIC ![DAXS Architecture](daxs_architecture.png)
 
 # COMMAND ----------
 
@@ -25,7 +23,7 @@
 # MAGIC
 # MAGIC The architecture diagram below shows how DAXS achieves this through efficient data partitioning, parallel processing with Pandas UDFs, and optimized model serialization. This solution makes industrial-scale anomaly detection accessible to organizations of any size.
 # MAGIC
-# MAGIC ![DAXS Architecture](DAXS.png)
+# MAGIC ![DAXS Architecture](daxs_architecture.png)
 
 # COMMAND ----------
 
