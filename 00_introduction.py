@@ -1,5 +1,10 @@
 # Databricks notebook source
 # MAGIC %md
+# MAGIC This solution accelerator notebook is available at [Databricks Industry Solutions](https://github.com/databricks-industry-solutions/daxs).
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC <img src='https://github.com/databricks-industry-solutions/.github/raw/main/profile/solacc_logo_wide.png' width="1000" ></img>
 # MAGIC
 # MAGIC # Training 10,000 Anomaly Detection Models for Under $1 on One Billion Records

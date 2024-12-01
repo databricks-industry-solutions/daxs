@@ -1,5 +1,10 @@
 # Databricks notebook source
 # MAGIC %md
+# MAGIC This solution accelerator notebook is available at [Databricks Industry Solutions](https://github.com/databricks-industry-solutions/daxs).
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC # Use Anomaly Detection Models for 10,000 Turbines using ECOD and Pandas UDFs
 
 # COMMAND ----------
@@ -298,8 +303,8 @@ anomaly_counts = exploded_results.filter("anomaly = 1")\
 anomaly_counts_pd = anomaly_counts.orderBy(F.desc("anomaly_count")).toPandas()
 
 plt.hist(anomaly_counts_pd["anomaly_count"], bins=20)
-plt.xlabel('Turbine ID')
-plt.ylabel('Anomaly Count')
+plt.xlabel('Anomaly Count')
+plt.ylabel('Number of Turbines')
 plt.title('Histogram of Anomaly Counts')
 plt.show()
 

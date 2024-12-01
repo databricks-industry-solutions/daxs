@@ -1,5 +1,10 @@
 # Databricks notebook source
 # MAGIC %md
+# MAGIC This solution accelerator notebook is available at [Databricks Industry Solutions](https://github.com/databricks-industry-solutions/daxs).
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC # Elevator Predictive Maintenance Dataset: Anomaly Detection
 # MAGIC
 # MAGIC This notebook demonstrates the use of the Elevator Predictive Maintenance Dataset from Huawei German Research Center for anomaly detection. We'll use the ECOD (Empirical Cumulative Distribution Functions for Outlier Detection) algorithm from the PyOD library.

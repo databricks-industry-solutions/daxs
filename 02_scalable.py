@@ -1,5 +1,10 @@
 # Databricks notebook source
 # MAGIC %md
+# MAGIC This solution accelerator notebook is available at [Databricks Industry Solutions](https://github.com/databricks-industry-solutions/daxs).
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC # Train Anomaly Detections for 10,000 Turbines using ECOD and Pandas UDFs
 
 # COMMAND ----------
