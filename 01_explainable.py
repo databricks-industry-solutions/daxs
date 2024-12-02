@@ -47,7 +47,7 @@
 
 # COMMAND ----------
 
-# DBTITLE 1,Import required libraries and setup MLflow
+# DBTITLE 1,Configure MLflow experiment
 # Core Data Science Libraries
 import pandas as pd
 import numpy as np
@@ -61,7 +61,6 @@ from mlflow.models.signature import infer_signature
 # Anomaly Detection
 from pyod.models.ecod import ECOD
 
-# DBTITLE 1,Configure MLflow experiment
 # Get current user and set MLflow experiment
 current_user_name = spark.sql("SELECT current_user()").collect()[0][0]
 mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
@@ -173,13 +172,12 @@ display(X.head())
 
 # COMMAND ----------
 
-# DBTITLE 1,Split data into training and test sets
+# DBTITLE 1,Train and register ECOD model
 # Split the data
 X_train, X_test = train_test_split(X, test_size=0.2, random_state=42)
 print(f"Training set shape: {X_train.shape}")
 print(f"Testing set shape: {X_test.shape}")
 
-# DBTITLE 1,Train and register ECOD model
 # Train the ECOD model
 with mlflow.start_run(run_name="ECOD_model") as run:
 
@@ -230,7 +228,7 @@ print(f"Loaded the champion model: {model_name}")
 
 # MAGIC %md
 # MAGIC ## 7. Results and Evaluation
-
+# MAGIC
 # MAGIC ### Model Explanations
 # MAGIC Here we generate explanations for our model's predictions using our custom explainer function.
 # MAGIC The explanations will help us understand:
@@ -246,7 +244,7 @@ predict, scores, explanations = predict_explain(clf, X_test, X_test.columns, top
 results_df = pd.DataFrame({
     'predict': predict,
     'scores': scores,
-    'explanations': explanations
+    'explanations': [' '.join(map(str, exp)) for exp in explanations]
 })
 
 # Display top anomalies
@@ -256,10 +254,10 @@ display(results_df.sort_values('scores', ascending=False).head(10))
 
 # MAGIC %md
 # MAGIC ## Results Summary
-# MAGIC 
+# MAGIC
 # MAGIC The ECOD model identified anomalies in:
 # MAGIC - Test set: 2,212 records (9.87%)
-
+# MAGIC
 # MAGIC These results align well with our configured contamination parameter of 0.1 (10%).
 
 # COMMAND ----------
