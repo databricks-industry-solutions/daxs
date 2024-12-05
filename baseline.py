@@ -63,9 +63,11 @@ _ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{db}")
 
 # COMMAND ----------
 
-# Read training data
+# Read training data and filter for first 2 turbines only
 spark_df = spark.read.table(f"{catalog}.{db}.turbine_data_train_10000")
+spark_df = spark_df.filter("turbine_id IN ('Turbine_1', 'Turbine_2')")
 print(f"Total records: {spark_df.count()}")
+print("Using turbines: Turbine_1, Turbine_2 for faster testing")
 
 # COMMAND ----------
 
