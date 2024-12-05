@@ -118,8 +118,8 @@ print(f"Training time: {training_time:.2f} seconds using {cpu_count()} cores")
 
 # COMMAND ----------
 
-# Read inference data and filter for first 2 turbines only
-inference_spark_df = spark.table("turbine_data_inference_10000")
+# Read inference data and filter for first 2 turbines only 
+inference_spark_df = spark.table("turbine_data_train_10000")  # Use same table as training for now
 inference_spark_df = inference_spark_df.filter("turbine_id IN ('Turbine_1', 'Turbine_2')")
 inference_pdf = inference_spark_df.toPandas()
 
