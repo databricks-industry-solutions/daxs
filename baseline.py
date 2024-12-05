@@ -54,8 +54,12 @@ mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection_ba
 
 # COMMAND ----------
 
+# Define catalog and schema
+catalog = "daxs"
+db = "default"
+
 # Read training data and filter for first 2 turbines only
-spark_df = spark.table("turbine_data_train_10000")
+spark_df = spark.table(f"{catalog}.{db}.turbine_data_train_10000")
 spark_df = spark_df.filter("turbine_id IN ('Turbine_1', 'Turbine_2')")
 print(f"Total records: {spark_df.count()}")
 print("Using turbines: Turbine_1, Turbine_2 for faster testing")
@@ -119,7 +123,7 @@ print(f"Training time: {training_time:.2f} seconds using {cpu_count()} cores")
 # COMMAND ----------
 
 # Read inference data and filter for first 2 turbines only 
-inference_spark_df = spark.table("turbine_data_train_10000")  # Use same table as training for now
+inference_spark_df = spark.table(f"{catalog}.{db}.turbine_data_train_10000")  # Use same table as training for now
 inference_spark_df = inference_spark_df.filter("turbine_id IN ('Turbine_1', 'Turbine_2')")
 inference_pdf = inference_spark_df.toPandas()
 
