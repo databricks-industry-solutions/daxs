@@ -99,13 +99,23 @@ with mlflow.start_run(run_name="isolation_forest_sequential_models"):
         clf = IsolationForest(contamination=0.1, random_state=42)
         clf.fit(turbine_data)
         
-        # Store model
+        # Store model and log to MLflow
         models[turbine_id] = clf
+        
+        # Log the model with its turbine ID
+        signature = infer_signature(turbine_data, clf.predict(turbine_data))
+        mlflow.sklearn.log_model(
+            clf,
+            f"model_{turbine_id}",
+            signature=signature,
+            registered_model_name=f"isolation_forest_{turbine_id}"
+        )
     
     training_time = time.time() - start_time
     mlflow.log_metric("training_time", training_time)
     
 print(f"Training time: {training_time:.2f} seconds")
+print("Models have been saved to MLflow Model Registry")
 
 # COMMAND ----------
 
