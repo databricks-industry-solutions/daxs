@@ -107,17 +107,18 @@ with mlflow.start_run(run_name="isolation_forest_sequential_models"):
         pd.DataFrame(columns=feature_cols), 
         np.array([1])  # Example prediction
     )
+    model_name = f"{catalog}.{db}.isolation_forest_models"
     mlflow.sklearn.log_model(
         models,
         "turbine_models",
         signature=signature,
-        registered_model_name="isolation_forest_models"
+        registered_model_name=model_name
     )
     
     # Set the 'prod' alias for the newly logged model version
     client = mlflow.tracking.MlflowClient()
-    latest_version = client.search_model_versions(f"name = 'isolation_forest_models'")[0]
-    client.set_registered_model_alias("isolation_forest_models", "prod", latest_version.version)
+    latest_version = client.search_model_versions(f"name = '{model_name}'")[0]
+    client.set_registered_model_alias(model_name, "prod", latest_version.version)
     
     training_time = time.time() - start_time
     mlflow.log_metric("training_time", training_time)
@@ -138,7 +139,7 @@ inference_spark_df = inference_spark_df.filter("turbine_id IN ('Turbine_1', 'Tur
 inference_pdf = inference_spark_df.toPandas()
 
 # Load the models dictionary from MLflow using the prod alias
-loaded_models = mlflow.sklearn.load_model("models:/isolation_forest_models@prod")
+loaded_models = mlflow.sklearn.load_model(f"models:/{catalog}.{db}.isolation_forest_models@prod")
 
 # Perform predictions for each turbine
 prediction_results = []
