@@ -80,40 +80,32 @@ feature_cols = pdf.columns.drop(['turbine_id', 'timestamp'])
 print(f"Total turbines: {len(turbine_ids)}")
 print(f"Feature columns: {len(feature_cols)}")
 
-from multiprocessing import Pool, cpu_count
-from functools import partial
-
-def train_turbine_model(turbine_id, data, feature_cols):
-    """Train an Isolation Forest model for a single turbine"""
-    turbine_data = data[data['turbine_id'] == turbine_id][feature_cols].fillna(0)
-    clf = IsolationForest(contamination=0.1, random_state=42, n_jobs=1)
-    clf.fit(turbine_data)
-    return (turbine_id, clf)
-
-# Train individual models in parallel using multiprocessing
+# Train individual models sequentially
 start_time = time.time()
 
-with mlflow.start_run(run_name="isolation_forest_parallel_models"):
+with mlflow.start_run(run_name="isolation_forest_sequential_models"):
     
     mlflow.log_param("contamination", 0.1)
-    mlflow.log_param("approach", "multiple_models_parallel")
+    mlflow.log_param("approach", "multiple_models_sequential")
     mlflow.log_param("n_turbines", len(turbine_ids))
-    mlflow.log_param("n_cores", cpu_count())
     
-    # Create partial function with fixed arguments
-    train_func = partial(train_turbine_model, data=pdf, feature_cols=feature_cols)
-    
-    # Use multiprocessing pool to train models in parallel
-    with Pool(processes=cpu_count()) as pool:
-        model_results = pool.map(train_func, turbine_ids)
-    
-    # Convert results to dictionary
-    models = dict(model_results)
+    # Train a model for each turbine
+    models = {}
+    for turbine_id in turbine_ids:
+        # Get data for this turbine
+        turbine_data = pdf[pdf['turbine_id'] == turbine_id][feature_cols].fillna(0)
+        
+        # Train model
+        clf = IsolationForest(contamination=0.1, random_state=42)
+        clf.fit(turbine_data)
+        
+        # Store model
+        models[turbine_id] = clf
     
     training_time = time.time() - start_time
     mlflow.log_metric("training_time", training_time)
     
-print(f"Training time: {training_time:.2f} seconds using {cpu_count()} cores")
+print(f"Training time: {training_time:.2f} seconds")
 
 # COMMAND ----------
 
