@@ -99,23 +99,26 @@ with mlflow.start_run(run_name="isolation_forest_sequential_models"):
         clf = IsolationForest(contamination=0.1, random_state=42)
         clf.fit(turbine_data)
         
-        # Store model and log to MLflow
+        # Store model
         models[turbine_id] = clf
-        
-        # Log the model with its turbine ID
-        signature = infer_signature(turbine_data, clf.predict(turbine_data))
-        mlflow.sklearn.log_model(
-            clf,
-            f"model_{turbine_id}",
-            signature=signature,
-            registered_model_name=f"isolation_forest_{turbine_id}"
-        )
+    
+    # Log all models together as a dictionary
+    signature = infer_signature(
+        pd.DataFrame(columns=feature_cols), 
+        np.array([1])  # Example prediction
+    )
+    mlflow.sklearn.log_model(
+        models,
+        "turbine_models",
+        signature=signature,
+        registered_model_name="isolation_forest_models"
+    )
     
     training_time = time.time() - start_time
     mlflow.log_metric("training_time", training_time)
     
 print(f"Training time: {training_time:.2f} seconds")
-print("Models have been saved to MLflow Model Registry")
+print("Models dictionary has been saved to MLflow Model Registry")
 
 # COMMAND ----------
 
@@ -129,11 +132,14 @@ inference_spark_df = spark.table(f"{catalog}.{db}.turbine_data_train_10000")  # 
 inference_spark_df = inference_spark_df.filter("turbine_id IN ('Turbine_1', 'Turbine_2')")
 inference_pdf = inference_spark_df.toPandas()
 
+# Load the models dictionary from MLflow
+loaded_models = mlflow.sklearn.load_model("models:/isolation_forest_models/latest")
+
 # Perform predictions for each turbine
 prediction_results = []
 for turbine_id in turbine_ids:
     # Get model for this turbine
-    model = models[turbine_id]
+    model = loaded_models[turbine_id]
     
     # Get data for this turbine
     turbine_data = inference_pdf[inference_pdf['turbine_id'] == turbine_id][feature_cols].fillna(0)
