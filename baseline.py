@@ -79,6 +79,7 @@ print("Using turbines: Turbine_1, Turbine_2 for faster testing")
 # COMMAND ----------
 
 # Get unique turbine IDs
+pdf = spark_df.toPandas()
 turbine_ids = pdf['turbine_id'].unique()
 print(f"Total turbines: {len(turbine_ids)}")
 
