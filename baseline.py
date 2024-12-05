@@ -78,10 +78,12 @@ print("Using turbines: Turbine_1, Turbine_2 for faster testing")
 
 # COMMAND ----------
 
-# Get unique turbine IDs
+# Get unique turbine IDs and define feature columns
 pdf = spark_df.toPandas()
 turbine_ids = pdf['turbine_id'].unique()
+feature_cols = pdf.columns.drop(['turbine_id', 'timestamp'])
 print(f"Total turbines: {len(turbine_ids)}")
+print(f"Feature columns: {len(feature_cols)}")
 
 from multiprocessing import Pool, cpu_count
 from functools import partial
