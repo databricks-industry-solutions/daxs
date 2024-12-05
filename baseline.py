@@ -52,19 +52,10 @@ mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection_ba
 
 # COMMAND ----------
 
-# Initialize storage 
-catalog = "daxs"
-db = "default"
-volume = "csv"
-
-# Make sure catalog exists
-_ = spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog}")
-_ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{db}")
-
 # COMMAND ----------
 
 # Read training data and filter for first 2 turbines only
-spark_df = spark.read.table(f"{catalog}.{db}.turbine_data_train_10000")
+spark_df = spark.table("turbine_data_train_10000")
 spark_df = spark_df.filter("turbine_id IN ('Turbine_1', 'Turbine_2')")
 print(f"Total records: {spark_df.count()}")
 print("Using turbines: Turbine_1, Turbine_2 for faster testing")
@@ -125,18 +116,15 @@ print(f"Training time: {training_time:.2f} seconds using {cpu_count()} cores")
 # MAGIC %md
 # MAGIC ## Performance Comparison
 # MAGIC
-# MAGIC The baseline approaches demonstrate two key limitations compared to DAXS:
+# MAGIC The baseline approaches demonstrate key limitations compared to DAXS:
 # MAGIC
-# MAGIC 1. **Storage Efficiency**: Storing models in memory or as separate files is less efficient than DAXS's encoded Delta table approach
+# MAGIC 1. **Training Time**: Sequential training with for loops is significantly slower than DAXS's parallel processing
 # MAGIC
-# MAGIC 2. **Training Time**: Sequential training with for loops is significantly slower than DAXS's parallel processing
-# MAGIC
-# MAGIC 3. **Scalability**: The baseline approaches don't scale well with increasing numbers of turbines and sensors
+# MAGIC 2. **Scalability**: The baseline approaches don't scale well with increasing numbers of turbines and sensors
 # MAGIC
 # MAGIC DAXS addresses these limitations through:
-# MAGIC - Efficient model encoding in Delta tables
 # MAGIC - Parallel processing with Pandas UDFs
-# MAGIC - Distributed storage and computation
+# MAGIC - Distributed computation
 
 # COMMAND ----------
 
