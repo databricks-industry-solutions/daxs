@@ -1,2 +1,3 @@
 pyod==2.0.2
 kagglehub==0.3.3
+scikit-learn==1.4.0
