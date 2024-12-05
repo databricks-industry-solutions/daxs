@@ -114,6 +114,54 @@ print(f"Training time: {training_time:.2f} seconds using {cpu_count()} cores")
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Prediction Using Trained Models
+
+# COMMAND ----------
+
+# Read inference data and filter for first 2 turbines only
+inference_spark_df = spark.table("turbine_data_inference_10000")
+inference_spark_df = inference_spark_df.filter("turbine_id IN ('Turbine_1', 'Turbine_2')")
+inference_pdf = inference_spark_df.toPandas()
+
+# Perform predictions for each turbine
+prediction_results = []
+for turbine_id in turbine_ids:
+    # Get model for this turbine
+    model = models[turbine_id]
+    
+    # Get data for this turbine
+    turbine_data = inference_pdf[inference_pdf['turbine_id'] == turbine_id][feature_cols].fillna(0)
+    
+    # Make predictions
+    predictions = model.predict(turbine_data)  # Returns -1 for anomalies, 1 for normal
+    scores = model.score_samples(turbine_data)
+    
+    # Convert predictions from [-1,1] to [1,0] to match DAXS format
+    predictions = (predictions == -1).astype(int)
+    
+    # Store results
+    result_df = pd.DataFrame({
+        'turbine_id': [turbine_id] * len(predictions),
+        'timestamp': inference_pdf[inference_pdf['turbine_id'] == turbine_id]['timestamp'],
+        'predict': predictions,
+        'scores': scores
+    })
+    prediction_results.append(result_df)
+
+# Combine all results
+all_predictions = pd.concat(prediction_results, ignore_index=True)
+
+# Log predictions with MLflow
+with mlflow.start_run(run_name="isolation_forest_predictions"):
+    mlflow.log_param("n_turbines", len(turbine_ids))
+    mlflow.log_param("n_predictions", len(all_predictions))
+    
+    # Evaluate and visualize results
+    evaluate_results(all_predictions)
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Performance Comparison
 # MAGIC
 # MAGIC The baseline approaches demonstrate key limitations compared to DAXS:
