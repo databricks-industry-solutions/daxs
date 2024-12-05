@@ -12,11 +12,29 @@
 
 # COMMAND ----------
 
-# MAGIC %run ./99_utilities
-
-# COMMAND ----------
-
 import numpy as np
+import matplotlib.pyplot as plt
+
+def evaluate_results(results_df):
+    """
+    Evaluate and visualize anomaly detection results.
+    
+    Args:
+        results_df: DataFrame containing 'predict' and 'scores' columns
+    """
+    n_anomalies = results_df['predict'].sum()
+    pct_anomalies = (n_anomalies/len(results_df))*100
+    
+    print(f"\nResults Summary:")
+    print(f"Detected anomalies: {n_anomalies} ({pct_anomalies:.2f}%)")
+
+    # Visualize anomaly scores distribution
+    plt.figure(figsize=(12, 6))
+    plt.hist(results_df['scores'], bins=50)
+    plt.title('Distribution of Anomaly Scores')
+    plt.xlabel('Anomaly Score')
+    plt.ylabel('Frequency')
+    plt.show()
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.model_selection import train_test_split
