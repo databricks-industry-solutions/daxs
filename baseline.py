@@ -127,10 +127,13 @@ inference_spark_df = spark.table(f"{catalog}.{db}.turbine_data_train_10000")  # 
 inference_spark_df = inference_spark_df.filter("turbine_id IN ('Turbine_1', 'Turbine_2')")
 inference_pdf = inference_spark_df.toPandas()
 
-def predict_turbine(turbine_id, models, inference_pdf, feature_cols):
-    """Make predictions for a single turbine"""
-    # Get model and data for this turbine
+# Perform predictions for each turbine
+prediction_results = []
+for turbine_id in turbine_ids:
+    # Get model for this turbine
     model = models[turbine_id]
+    
+    # Get data for this turbine
     turbine_data = inference_pdf[inference_pdf['turbine_id'] == turbine_id][feature_cols].fillna(0)
     
     # Make predictions
@@ -140,22 +143,14 @@ def predict_turbine(turbine_id, models, inference_pdf, feature_cols):
     # Convert predictions from [-1,1] to [1,0] to match DAXS format
     predictions = (predictions == -1).astype(int)
     
-    # Return results as DataFrame
-    return pd.DataFrame({
+    # Store results
+    result_df = pd.DataFrame({
         'turbine_id': [turbine_id] * len(predictions),
         'timestamp': inference_pdf[inference_pdf['turbine_id'] == turbine_id]['timestamp'],
         'predict': predictions,
         'scores': scores
     })
-
-# Perform parallel predictions for all turbines
-predict_func = partial(predict_turbine, 
-                      models=models,
-                      inference_pdf=inference_pdf,
-                      feature_cols=feature_cols)
-
-with Pool(processes=cpu_count()) as pool:
-    prediction_results = pool.map(predict_func, turbine_ids)
+    prediction_results.append(result_df)
 
 # Combine all results
 all_predictions = pd.concat(prediction_results, ignore_index=True)
