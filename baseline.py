@@ -69,64 +69,10 @@ print(f"Total records: {spark_df.count()}")
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Baseline Approach 1: Single Model for All Turbines
-# MAGIC First let's try training one Isolation Forest model for all turbines
-
-# COMMAND ----------
-
-# Convert to pandas and prepare features
-pdf = spark_df.toPandas()
-feature_cols = [col for col in pdf.columns if col.startswith('sensor_')]
-X = pdf[feature_cols].fillna(0)
-
-# Split data
-X_train, X_test = train_test_split(X, test_size=0.2, random_state=42)
-
-# Train single model
-start_time = time.time()
-
-with mlflow.start_run(run_name="isolation_forest_single_model"):
-    
-    # Train model
-    clf = IsolationForest(contamination=0.1, random_state=42, n_jobs=-1)
-    clf.fit(X_train)
-    
-    # Get predictions
-    y_train_pred = clf.predict(X_train)
-    y_train_pred = np.where(y_train_pred == 1, 0, 1)  # Convert to binary labels
-    
-    # Log parameters and metrics
-    mlflow.log_param("contamination", 0.1)
-    mlflow.log_param("approach", "single_model")
-    mlflow.log_metric("training_time", time.time() - start_time)
-    
-    # Log model
-    signature = infer_signature(X_train, y_train_pred)
-    mlflow.sklearn.log_model(clf, "isolation_forest_model", signature=signature)
-    
-    # Register model
-    model_name = f"{catalog}.{db}.IsolationForest_Baseline_{current_user_name[:4]}"
-    model_version = mlflow.register_model(
-        f"runs:/{mlflow.active_run().info.run_id}/isolation_forest_model",
-        model_name
-    )
-    
-    # Set as champion
-    client = mlflow.tracking.MlflowClient()
-    client.set_registered_model_alias(
-        name=model_name,
-        alias="Champion",
-        version=model_version.version
-    )
-
-print(f"Training time: {time.time() - start_time:.2f} seconds")
-
-# COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Baseline Approach 2: Individual Models with For Loop
-# MAGIC Now let's try training individual models per turbine using a simple for loop
+# MAGIC ## Parallel Training of Individual Models
+# MAGIC Train individual models per turbine using multiprocessing for optimal performance
 
 # COMMAND ----------
 
