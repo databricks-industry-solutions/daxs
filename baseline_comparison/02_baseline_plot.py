@@ -14,8 +14,10 @@ plt.rcParams['axes.facecolor'] = 'white'
 
 # Data
 categories = ['', '']  # Empty categories for x-axis
-isolation_forest = [560, 11]  # Processing time and cost for Isolation Forest
-daxs = [2, 1]  # Processing time and cost for DAXS
+isolation_forest = [800, 16]  # Processing time and cost for Isolation Forest
+# 800 [min] / 60 [min] * 3 {DBU/h} * 0.4 [$/DBU] = $16
+daxs = [4, 0.72]  # Processing time and cost for DAXS
+# 4 [min]/60 [min] * 27 [DBU/h] * 0.4 [$/DBU] = $0.72
 
 # Calculate bar positions
 x = np.arange(len(categories))
@@ -46,12 +48,14 @@ ax.spines['right'].set_visible(False)
 def autolabel(rects):
     for rect in rects:
         height = rect.get_height()
-        if x[int((rect.get_x() - x[0] + width/2) / 1)] == 1:  # Cost column
+        bar_x = rect.get_x() + rect.get_width()/2
+        # Check if this is the cost column (second group of bars)
+        if bar_x > width:  
             label = f'${height}'
         else:  # Time column
-            label = f'{int(height)}'
+            label = f'{int(height)} min'
             
-        ax.text(rect.get_x() + rect.get_width()/2, height,
+        ax.text(bar_x, height,
                 label,
                 ha='center', va='bottom',
                 fontsize=12, fontweight='bold')
@@ -60,8 +64,8 @@ autolabel(rects1)
 autolabel(rects2)
 
 # Add speedup annotations
-annotations = ['280x\nspeed-up', '11x\ncost reduction']
-y_positions = [6, 6]  # Same height for both annotations
+annotations = ['200x\nspeed-up', '22x\ncost reduction']
+y_positions = [2, 2]  # Same height for both annotations
 for i in range(len(categories)):
     middle_x = x[i]
     ax.text(middle_x, y_positions[i], annotations[i],
