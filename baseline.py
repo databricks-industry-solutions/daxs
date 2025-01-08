@@ -48,9 +48,9 @@ from datetime import datetime
 current_user_name = spark.sql("SELECT current_user()").collect()[0][0]
 
 # Set the experiment name
-mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection_baseline")
-
-# COMMAND ----------
+experiment_name = f"/Users/{current_user_name}/elevator_anomaly_detection_baseline"
+mlflow.set_experiment(experiment_name)
+experiment_id = mlflow.get_experiment_by_name(experiment_name).experiment_id
 
 # COMMAND ----------
 
@@ -58,15 +58,16 @@ mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection_ba
 catalog = "daxs"
 db = "default"
 
-# Read training data and filter for first 2 turbines only
+# Read training data and filter for first 100 turbines only
+turbine_set = [f"Turbine_{i}" for i in range(1, 101)]
 spark_df = spark.table(f"{catalog}.{db}.turbine_data_train_10000")
-spark_df = spark_df.filter("turbine_id IN ('Turbine_1', 'Turbine_2')")
+spark_df = spark_df.filter(spark_df.turbine_id.isin(turbine_set))
 print(f"Total records: {spark_df.count()}")
-print("Using turbines: Turbine_1, Turbine_2 for faster testing")
+print("Using turbines: Turbine_1 to Turbine_100 for faster testing")
 
 # COMMAND ----------
 
-
+# MAGIC
 # MAGIC %md
 # MAGIC ## Parallel Training of Individual Models
 # MAGIC Train individual models per turbine using multiprocessing for optimal performance
@@ -91,34 +92,36 @@ with mlflow.start_run(run_name="isolation_forest_sequential_models"):
     
     # Train a model for each turbine
     models = {}
+
     for turbine_id in turbine_ids:
-        # Get data for this turbine
-        turbine_data = pdf[pdf['turbine_id'] == turbine_id][feature_cols].fillna(0)
+        with mlflow.start_run(run_name=f"{turbine_id}", nested=True, experiment_id=experiment_id) as run:
+            # Get data for this turbine
+            turbine_data = pdf[pdf['turbine_id'] == turbine_id][feature_cols].fillna(0)
+            
+            # Train model
+            clf = IsolationForest(contamination=0.1, random_state=42)
+            clf.fit(turbine_data)
+            
+            # Store model
+            models[turbine_id] = clf
         
-        # Train model
-        clf = IsolationForest(contamination=0.1, random_state=42)
-        clf.fit(turbine_data)
-        
-        # Store model
-        models[turbine_id] = clf
-    
-    # Log all models together as a dictionary
-    signature = infer_signature(
-        pd.DataFrame(columns=feature_cols), 
-        np.array([1])  # Example prediction
-    )
-    model_name = f"{catalog}.{db}.isolation_forest_models"
-    mlflow.sklearn.log_model(
-        models,
-        "turbine_models",
-        signature=signature,
-        registered_model_name=model_name
-    )
-    
-    # Set the 'prod' alias for the newly logged model version
-    client = mlflow.tracking.MlflowClient()
-    latest_version = client.search_model_versions(f"name = '{model_name}'")[0]
-    client.set_registered_model_alias(model_name, "prod", latest_version.version)
+            # Log all models together as a dictionary
+            signature = infer_signature(
+                pd.DataFrame(columns=feature_cols), 
+                np.array([1])  # Example prediction
+            )
+            model_name = f"{catalog}.benchmark.isolation_forest_models_{turbine_id}"
+            mlflow.sklearn.log_model(
+                clf,
+                "model",
+                signature=signature,
+                registered_model_name=model_name
+            )
+            
+            # Set the 'prod' alias for the newly logged model version
+            client = mlflow.tracking.MlflowClient()
+            latest_version = client.search_model_versions(f"name = '{model_name}'")[0]
+            client.set_registered_model_alias(model_name, "prod", latest_version.version)
     
     training_time = time.time() - start_time
     mlflow.log_metric("training_time", training_time)
@@ -135,7 +138,7 @@ print("Models dictionary has been saved to MLflow Model Registry")
 
 # Read inference data and filter for first 2 turbines only 
 inference_spark_df = spark.table(f"{catalog}.{db}.turbine_data_train_10000")  # Use same table as training for now
-inference_spark_df = inference_spark_df.filter("turbine_id IN ('Turbine_1', 'Turbine_2')")
+inference_spark_df = inference_spark_df.filter(inference_spark_df.turbine_id.isin(turbine_set))
 inference_pdf = inference_spark_df.toPandas()
 
 # Load the models dictionary from MLflow using the prod alias
