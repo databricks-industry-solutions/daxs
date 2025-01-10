@@ -64,3 +64,13 @@ DAXS is an open-source project, and we welcome contributions from data scientist
 - Include an option to deploy thousands of trained models behind a single or multiple Model Serving endpoint(s) for real time anomaly detection use cases.
 
 DAXS has the potential to revolutionize predictive maintenance in the manufacturing industry by providing an accessible, scalable, and explainable solution for anomaly detection. Join us in developing this powerful tool to help businesses improve their operations and reduce unplanned downtime.
+
+## Licensing Information
+
+The following table lists the libraries, data sources, and their respective licenses used in this project:
+
+| Library / Data | Description | License | Source |
+|----------------|-------------|----------|---------|
+| pyod | A Comprehensive and Scalable Python Library for Outlier Detection (Anomaly Detection) | BSD License | https://pypi.org/project/pyod/ |
+| kagglehub | Access Kaggle resources anywhere | Apache 2.0 | https://pypi.org/project/kagglehub/ |
+| predictive-maintenance-dataset.csv | predictive-maintenance-dataset.csv | CC0 1.0 | https://zenodo.org/records/3653909 |
