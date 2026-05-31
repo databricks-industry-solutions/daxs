@@ -23,7 +23,7 @@
 
 # MAGIC %md
 # MAGIC ## 1. Cluster setup
-# MAGIC We recommend using a cluster with [Databricks Runtime 15.4 LTS for ML](https://docs.databricks.com/en/release-notes/runtime/15.4lts-ml.html) or above. The cluster can be configured as either a single-node or multi-node CPU cluster. This notebook can run on a single-node cluster since we are applying only a single model, but the subsequent notebooks will require a multi-node cluster.
+# MAGIC We recommend using a cluster with [Databricks Runtime 17.3 LTS for ML](https://docs.databricks.com/en/release-notes/runtime/17.3lts-ml.html) or above. The cluster can be configured as either a single-node or multi-node CPU cluster. This notebook can run on a single-node cluster since we are applying only a single model, but the subsequent notebooks will require a multi-node cluster.
 
 # COMMAND ----------
 
@@ -79,17 +79,18 @@ mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
 # COMMAND ----------
 
 # DBTITLE 1,Initialize storage environment
-catalog = "daxs"
+dbutils.widgets.text("catalog", "daxs", "Catalog Name")
+catalog = dbutils.widgets.get("catalog")
 db = "default"
 volume = "csv"
 
-# Make sure that the catalog exists
-_ = spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog}")
-
-# Make sure that the schema exists
+# Make sure that the catalog and schema exist
+try:
+    _ = spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog}")
+except Exception:
+    pass  # Catalog may already exist or user may lack CREATE CATALOG permission
+_ = spark.sql(f"USE CATALOG {catalog}")
 _ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{db}")
-
-# Make sure that the volume exists
 _ = spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{db}.{volume}")
 
 # COMMAND ----------
@@ -101,13 +102,11 @@ _ = spark.sql(f"CREATE VOLUME IF NOT EXISTS {catalog}.{db}.{volume}")
 # COMMAND ----------
 
 # DBTITLE 1,Download dataset from Kaggle
-import subprocess
+import shutil
 import kagglehub
 
 path = kagglehub.dataset_download("shivamb/elevator-predictive-maintenance-dataset", force_download=True)
-bash = f"""mv {path}/predictive-maintenance-dataset.csv /Volumes/{catalog}/{db}/{volume}/predictive-maintenance-dataset.csv"""
-process = subprocess.Popen(bash, shell=True, executable='/bin/bash')
-process.wait()
+shutil.move(f"{path}/predictive-maintenance-dataset.csv", f"/Volumes/{catalog}/{db}/{volume}/predictive-maintenance-dataset.csv")
 
 # COMMAND ----------
 
