@@ -16,7 +16,7 @@
 
 # MAGIC %md
 # MAGIC ## 1. Cluster setup
-# MAGIC We recommend using a multi-node CPU cluster with [Databricks Runtime 15.4 LTS for ML](https://docs.databricks.com/en/release-notes/runtime/15.4lts-ml.html) or above. This notebook will leverage [Pandas UDF](https://docs.databricks.com/en/udf/pandas.html) and will utilize all the available resource (i.e., cores). Make sure to set the following Spark configurations before you start your cluster: [`spark.sql.execution.arrow.enabled true`](https://spark.apache.org/docs/3.0.1/sql-pyspark-pandas-with-arrow.html#enabling-for-conversion-tofrom-pandas) and [`spark.sql.adaptive.enabled false`](https://spark.apache.org/docs/latest/sql-performance-tuning.html#adaptive-query-execution). You can do this by specifying [Spark configuration](https://docs.databricks.com/en/compute/configure.html#spark-configuration) in the advanced options on the cluster creation page.
+# MAGIC We recommend using a multi-node CPU cluster with [Databricks Runtime 17.3 LTS for ML](https://docs.databricks.com/en/release-notes/runtime/17.3lts-ml.html) or above. This notebook will leverage [Pandas UDF](https://docs.databricks.com/en/udf/pandas.html) and will utilize all the available resource (i.e., cores). Make sure to set the following Spark configurations before you start your cluster: [`spark.sql.execution.arrow.enabled true`](https://spark.apache.org/docs/3.0.1/sql-pyspark-pandas-with-arrow.html#enabling-for-conversion-tofrom-pandas) and [`spark.sql.adaptive.enabled false`](https://spark.apache.org/docs/latest/sql-performance-tuning.html#adaptive-query-execution). You can do this by specifying [Spark configuration](https://docs.databricks.com/en/compute/configure.html#spark-configuration) in the advanced options on the cluster creation page.
 
 # COMMAND ----------
 
@@ -52,13 +52,16 @@ mlflow.set_experiment(f"/Users/{current_user_name}/elevator_anomaly_detection")
 # COMMAND ----------
 
 # DBTITLE 1,Create the catalog and schema if they don't exist
-catalog = "daxs"
+dbutils.widgets.text("catalog", "daxs", "Catalog Name")
+catalog = dbutils.widgets.get("catalog")
 db = "default"
 
-# Make sure that the catalog exists
-_ = spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog}")
-
-# Make sure that the schema exists
+# Make sure that the catalog and schema exist
+try:
+    _ = spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog}")
+except Exception:
+    pass  # Catalog may already exist or user may lack CREATE CATALOG permission
+_ = spark.sql(f"USE CATALOG {catalog}")
 _ = spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{db}")
 
 # COMMAND ----------

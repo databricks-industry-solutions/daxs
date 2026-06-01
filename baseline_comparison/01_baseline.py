@@ -9,7 +9,7 @@
 
 # MAGIC %md
 # MAGIC ## 1. Cluster setup
-# MAGIC To run this baseline notebook, we used a single-node CPU cluster with [Databricks Runtime 15.4 LTS for ML](https://docs.databricks.com/en/release-notes/runtime/15.4lts-ml.html) with [r8g.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) (memory optimized) instances on AWS (27 DBU/h) or [Standard_E4d_v4](https://www.databricks.com/product/pricing/product-pricing/instance-types) (memory optimized) instances on Azure (18 DBU/h).
+# MAGIC To run this baseline notebook, we used a single-node CPU cluster with [Databricks Runtime 17.3 LTS for ML](https://docs.databricks.com/en/release-notes/runtime/17.3lts-ml.html) with [r8g.xlarge](https://www.databricks.com/product/pricing/product-pricing/instance-types) (memory optimized) instances on AWS (27 DBU/h) or [Standard_E4d_v4](https://www.databricks.com/product/pricing/product-pricing/instance-types) (memory optimized) instances on Azure (18 DBU/h).
 
 # COMMAND ----------
 
@@ -68,7 +68,8 @@ experiment_id = mlflow.get_experiment_by_name(experiment_name).experiment_id
 # COMMAND ----------
 
 # Define catalog and schema
-catalog = "daxs"
+dbutils.widgets.text("catalog", "daxs", "Catalog Name")
+catalog = dbutils.widgets.get("catalog")
 db = "default"
 
 # Read training data and filter for first 100 turbines only
